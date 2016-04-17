@@ -18,6 +18,7 @@ import Control.Concurrent.Async
 import Control.Monad.STM
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import Control.Monad.Trans.Reader
+import Control.Monad.Trans.Control
 import Control.Monad
 import Database.Persist
 import Database.Persist.Sqlite
@@ -47,58 +48,55 @@ PatientBed
 main :: IO ()
 main = do
     q <- newTQueueIO
-    withAsync (sqlBackend q) $ \_ ->
-        do thomasId <- request q (createPatient "Thomas Wienecke")
-           piaId <- request q (createPatient "Pia von Rosenberg")
-           bedId <- request q (createBed "Bett 1")
-           request q (placePatient thomasId bedId)
-           request q getPatients
-           void $ request q (getPatientBed piaId)
+    withAsync
+        (runNoLoggingT $ withSqliteConn ":memory:" $ \backend -> sqlThread backend q)
+        (\_ -> main' q)
 
-request :: Show a => TQueue Request -> Kis a -> IO a
+main' :: TQueue (Request IO) -> IO ()
+main' q = do
+    thomasId <- request q (createPatient "Thomas")
+    bedId <- request q (createBed "Thomas' Bed")
+    request q (createPatient "Pia")
+    request q (placePatient thomasId bedId)
+    void $ request q getPatients
+
+request :: Show a => TQueue (Request IO) -> Kis IO a -> IO a
 request q action = do
     res <- newEmptyTMVarIO
     atomically $ writeTQueue q (Request action res)
     atomically $ takeTMVar res
 
-sqlBackend :: TQueue Request -> IO ()
-sqlBackend q =
-    runSqlite ":memory:" $ do
-        runMigration migrateAll
-        loopSql q
+sqlThread :: (MonadBaseControl IO m, MonadIO m) => SqlBackend -> TQueue (Request m) -> NoLoggingT m ()
+sqlThread backend q = NoLoggingT $ runSqlConn (runMigration migrateAll >> loopSql q) backend
 
-loopSql :: TQueue Request -> ReaderT SqlBackend Bla ()
+loopSql :: (MonadIO m, MonadBaseControl IO m) => TQueue (Request m) -> SqlPersistT m ()
 loopSql q = nextItem >>= process >> loopSql q
     where
         nextItem = liftIO $ atomically $ readTQueue q
-        process (Request action resVar) = logReq action >> runKis action >>= resolve resVar
+        process (Request (Kis desc action) resVar) = logReq desc >> action >>= resolve resVar
         resolve resVar res = logRes res >> (liftIO . atomically $ putTMVar resVar res)
-        logReq action = liftIO $ putStrLn ("Request: " <> description action)
+        logReq desc = liftIO $ putStrLn ("Request: " <> desc)
         logRes res = liftIO $ putStrLn ("Response: " <> show res)
 
-type Bla = NoLoggingT (ResourceT IO)
+data Request m where
+    Request :: Show a => Kis m a -> TMVar a -> Request m
 
-data Kis a =
-    Kis
-    { description :: String
-    , runKis :: ReaderT SqlBackend Bla a
-    }
+data Kis m a where
+    Kis :: String -> SqlPersistT m a -> Kis m a
 
-data Request where
-    Request :: Show a => Kis a -> TMVar a -> Request
 
-createPatient :: String -> Kis (Key Patient)
+createPatient :: MonadIO m => String -> Kis m (Key Patient)
 createPatient name = Kis ("Create patient " <> name) $ insert (Patient name)
 
-createBed :: String -> Kis (Key Bed)
+createBed :: MonadIO m => String -> Kis m (Key Bed)
 createBed name = Kis ("Create bed " <> name) $ insert (Bed name)
 
-placePatient :: Key Patient -> Key Bed -> Kis (Maybe (Key PatientBed))
+placePatient :: MonadIO m => Key Patient -> Key Bed -> Kis m (Maybe (Key PatientBed))
 placePatient patientId bedId =
     Kis ("Place patient " <> show patientId <> " in bed " <> show bedId) $
         insertUnique (PatientBed patientId bedId)
 
-getPatients :: Kis [Entity Patient]
+getPatients :: MonadIO m => Kis m [Entity Patient]
 getPatients = Kis "getPatients" $ E.select $ E.from $ \p -> return p
 
 
@@ -115,7 +113,7 @@ singleListToMaybe errMsg xs =
 
 uniqueSelect q = liftM (singleListToMaybe "Unique constraint violated") (E.select q)
 
-getPatientBed :: Key Patient -> Kis (Maybe Bed)
+getPatientBed :: MonadIO m => Key Patient -> Kis m (Maybe Bed)
 getPatientBed id = Kis ("Get bed for patient " <> show id) $ do
     bedE <-
         uniqueSelect $ E.from $ \(b `E.InnerJoin` pb) -> do
