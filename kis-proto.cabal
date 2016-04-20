@@ -16,14 +16,6 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   build-depends:       base >= 4.7 && < 5
-  default-language:    Haskell2010
-
-executable kis-proto
-  hs-source-dirs:      app
-  main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
-  build-depends:       base
-                     , kis-proto
                      , mtl
                      , transformers
                      , containers
@@ -35,7 +27,21 @@ executable kis-proto
                      , stm
                      , monad-logger
                      , resourcet
+                     , text
                      , monad-control
+  default-language:    Haskell2010
+  exposed-modules:     App
+                     , Kis
+                     , Kis.Loop
+                     , Kis.Model
+  ghc-options:       -Wall
+
+executable kis-proto
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , kis-proto
   default-language:    Haskell2010
 
 source-repository head
