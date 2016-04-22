@@ -10,6 +10,7 @@ where
 
 import Control.Concurrent.STM.TMVar
 import Control.Concurrent.STM.TQueue
+import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Logger
 import Control.Monad.STM
@@ -19,6 +20,9 @@ import Data.Text
 
 import Kis.Model
 
+-- | Contains a KisAction and a TMVar which will be filled with the result of
+-- the action by the sqlThread. The return type should be instance of Show in
+-- order to log the result of our request.
 data Request where
     Request :: Show a => KisAction a -> TMVar a -> Request
 
@@ -31,6 +35,25 @@ data KisAction a =
     , runAction :: SqlPersistT (LoggingT IO) a
     }
 
+data Request' where
+    Request' :: Show a => KisAction' a -> TMVar a -> Request'
+
+data KisAction' a where
+    CreatePatient :: String -> KisAction' PatientId
+    CreateBed :: String -> KisAction' BedId
+    PlacePatient :: PatientId -> BedId -> KisAction' (Maybe PatientBedId)
+    GetPatients :: KisAction' [Entity Patient]
+
+instance Show (KisAction' a) where
+    show (CreatePatient name) = "Create patient " <> name
+    show (CreateBed name) = "Create bed " <> name
+    show (PlacePatient pid bid) = "Place patient " <> show pid <> " in bed " <> show bid
+    show GetPatients = "Get patients"
+
+instance Show Request' where
+    show (Request' action _) = show action
+
+-- | Place a KisAction in the request queue and wait for the result.
 request :: (MonadIO m, Show a) => TQueue Request -> KisAction a -> m a
 request q action =
     liftIO $ do
@@ -50,7 +73,7 @@ sqlThread' backend q =
     runSqlConn (runMigration migrateAll >> loopSql q) backend
 
 loopSql :: TQueue Request -> SqlPersistT (LoggingT IO) ()
-loopSql q = nextItem >>= process >> loopSql q
+loopSql q = forever (process =<< nextItem)
     where
         nextItem = liftIO $ atomically $ readTQueue q
         process (Request req resVar) =
