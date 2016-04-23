@@ -14,11 +14,13 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Logger
 import Control.Monad.STM
+import Control.Monad.Trans.Reader
 import Database.Persist.Sqlite
 import Data.Monoid
 import Data.Text
 
 import Kis.Model
+import Kis.Backend
 
 -- | Contains a KisAction and a TMVar which will be filled with the result of
 -- the action by the sqlThread. The return type should be instance of Show in
@@ -26,32 +28,26 @@ import Kis.Model
 data Request where
     Request :: Show a => KisAction a -> TMVar a -> Request
 
--- | A database action together with a description of the action. The
--- description is used to log requests in the sql loop when they appear. Adding
--- more meta data is possible.
-data KisAction a =
-    KisAction
-    { description :: String
-    , runAction :: SqlPersistT (LoggingT IO) a
-    }
+data KisAction a where
+    CreatePatient :: String -> KisAction PatientId
+    CreateBed :: String -> KisAction BedId
+    PlacePatient :: PatientId -> BedId -> KisAction (Maybe PatientBedId)
+    GetPatients :: KisAction [Entity Patient]
 
-data Request' where
-    Request' :: Show a => KisAction' a -> TMVar a -> Request'
+runAction :: MonadIO m => KisAction a -> ReaderT SqlBackend m a
+runAction (CreatePatient name) = createPatient name
+runAction (CreateBed name) = createBed name
+runAction (PlacePatient patId bedId) = placePatient patId bedId
+runAction GetPatients = getPatients
 
-data KisAction' a where
-    CreatePatient :: String -> KisAction' PatientId
-    CreateBed :: String -> KisAction' BedId
-    PlacePatient :: PatientId -> BedId -> KisAction' (Maybe PatientBedId)
-    GetPatients :: KisAction' [Entity Patient]
-
-instance Show (KisAction' a) where
+instance Show (KisAction a) where
     show (CreatePatient name) = "Create patient " <> name
     show (CreateBed name) = "Create bed " <> name
     show (PlacePatient pid bid) = "Place patient " <> show pid <> " in bed " <> show bid
     show GetPatients = "Get patients"
 
-instance Show Request' where
-    show (Request' action _) = show action
+instance Show Request where
+    show (Request action _) = show action
 
 -- | Place a KisAction in the request queue and wait for the result.
 request :: (MonadIO m, Show a) => TQueue Request -> KisAction a -> m a
@@ -79,5 +75,5 @@ loopSql q = forever (process =<< nextItem)
         process (Request req resVar) =
             logReq req >> runAction req >>= resolve resVar
         resolve resVar res = logRes res >> (liftIO . atomically $ putTMVar resVar res)
-        logReq req = logInfoN ("Request: " <> (pack . description $ req))
+        logReq req = logInfoN ("Request: " <> (pack . show $ req))
         logRes res = logInfoN ("Response: " <> (pack . show $ res))

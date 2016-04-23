@@ -18,8 +18,8 @@ appMain = do
 
 main' :: TQueue Request -> IO ()
 main' q = do
-    thomasId <- request q (createPatient "Thomas")
-    bedId <- request q (createBed "Thomas' Bed")
-    void $ request q (createPatient "Pia")
-    void $ request q (placePatient thomasId bedId)
-    void $ request q getPatients
+    thomasId <- request q (CreatePatient "Thomas")
+    bedId <- request q (CreateBed "Thomas' Bed")
+    void $ request q (CreatePatient "Pia")
+    void $ request q (PlacePatient thomasId bedId)
+    void $ request q GetPatients

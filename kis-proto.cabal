@@ -34,7 +34,8 @@ library
                      , Kis
                      , Kis.Loop
                      , Kis.Model
-  ghc-options:       -Wall
+                     , Kis.Backend
+  ghc-options:       -Wall -fwarn-incomplete-patterns
 
 executable kis-proto
   hs-source-dirs:      app
