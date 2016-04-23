@@ -39,10 +39,10 @@ singleListToMaybe errMsg xs =
       _ -> error errMsg
 
 getPatientBed :: PatientId -> KisAction (Maybe Bed)
-getPatientBed bedId = KisAction ("Get bed for patient " <> show bedId) $ do
+getPatientBed patientId = KisAction ("Get bed for patient " <> show patientId) $ do
     bedE <-
         uniqueSelect $ E.from $ \(b `E.InnerJoin` pb) -> do
-            E.where_ (pb ^. PatientBedPatientId E.==. E.val bedId)
+            E.where_ (pb ^. PatientBedPatientId E.==. E.val patientId)
             E.on (pb ^. PatientBedBedId E.==. b ^. BedId)
             return b
     return (liftM entityVal bedE)
