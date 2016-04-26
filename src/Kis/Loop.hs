@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE GADTs                      #-}
 module Kis.Loop
-    ( sqlThread
+    ( kisThread
     , request
     , Request
     , KisAction(..)
@@ -57,23 +57,27 @@ request q action =
        atomically $ writeTQueue q (Request action res)
        atomically $ takeTMVar res
 
-sqlThread :: TQueue Request -> IO ()
-sqlThread q =
-    runStdoutLoggingT $ withSqliteConn ":memory:" $ \backend -> sqlThread' backend q
+kisThread :: TQueue Request -> IO ()
+kisThread q =
+    runStdoutLoggingT $ withSqliteConn ":memory:" $ \backend -> do
+        runSqlConn (runMigration migrateAll) backend
+        loop q backend
 
-sqlThread' ::
-    SqlBackend
-    -> TQueue Request
-    -> LoggingT IO ()
-sqlThread' backend q =
-    runSqlConn (runMigration migrateAll >> loopSql q) backend
-
-loopSql :: TQueue Request -> SqlPersistT (LoggingT IO) ()
-loopSql q = forever (process =<< nextItem)
+loop :: TQueue Request -> SqlBackend -> LoggingT IO ()
+loop q backend =
+    forever (process =<< nextRequest)
     where
-        nextItem = liftIO $ atomically $ readTQueue q
-        process (Request req resVar) =
-            logReq req >> runAction req >>= resolve resVar
-        resolve resVar res = logRes res >> (liftIO . atomically $ putTMVar resVar res)
-        logReq req = logInfoN ("Request: " <> (pack . show $ req))
-        logRes res = logInfoN ("Response: " <> (pack . show $ res))
+      process (Request req resVar) = do
+          logShow "Request" req
+          res <- runSqlRequest req backend
+          logShow "Result" res
+          resolve resVar res
+      nextRequest = liftIO $ atomically $ readTQueue q
+      resolve resVar res = liftIO . atomically $ putTMVar resVar res
+
+runSqlRequest :: KisAction a -> SqlBackend -> LoggingT IO a
+runSqlRequest req backend = runSqlConn (runAction req) backend
+
+logShow :: (MonadLogger m, Show a) => Text -> a -> m ()
+logShow tag x = logInfoN (tag <> ": " <> (pack . show $ x))
+

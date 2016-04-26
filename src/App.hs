@@ -13,7 +13,7 @@ appMain :: IO ()
 appMain = do
     q <- newTQueueIO
     withAsync
-        (sqlThread q)
+        (kisThread q)
         (\_ -> main' q)
 
 main' :: TQueue Request -> IO ()

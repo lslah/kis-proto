@@ -1,5 +1,5 @@
 module Kis
-    ( sqlThread
+    ( kisThread
     , request
     , KisAction(..)
     , Request
