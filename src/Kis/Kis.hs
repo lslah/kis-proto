@@ -1,6 +1,8 @@
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+
 module Kis.Kis
     ( withKis
     , KisAction(..)
@@ -24,12 +26,7 @@ data KisAction a where
     GetPatients :: KisAction [Entity Patient]
     PlacePatient :: PatientId -> BedId -> KisAction (Maybe PatientBedId)
 
-instance Show (KisAction a) where
-    show (CreateBed name) = "Create bed " <> name
-    show (CreatePatient name) = "Create patient " <> name
-    show (GetPatient pid) = "Get patient " <> show pid
-    show GetPatients = "Get patients"
-    show (PlacePatient pid bid) = "Place patient " <> show pid <> " in bed " <> show bid
+deriving instance Show (KisAction a)
 
 data Kis m = Kis { request :: forall a. KisAction a -> KisClient m a }
 type KisClient m a = ReaderT (Kis m) m a
