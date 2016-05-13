@@ -35,9 +35,11 @@ inMemoryApplication = spockAsApp inMemoryWeb
 webInterface :: MonadIO m => SpockT (KisClient m) ()
 webInterface = do
     middleware $ staticPolicy $ addBase __ASSET_DIR__
-    post ("/patient" <//> var) $ \name -> do
-        patId <- lift $ req (CreatePatient name)
+    post "/patient" $ do
+        patient <- jsonBody'
+        patId <- req' (CreatePatient patient)
         json patId
     get "/patients" $ do
-        patients <- lift $ req GetPatients
+        patients <- req' GetPatients
         json patients
+    where req' = lift . req

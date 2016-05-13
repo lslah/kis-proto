@@ -21,7 +21,7 @@ import Kis.Model
 
 data KisAction a where
     CreateBed :: String -> KisAction BedId
-    CreatePatient :: String -> KisAction PatientId
+    CreatePatient :: Patient -> KisAction PatientId
     GetPatient :: PatientId -> KisAction (Maybe Patient)
     GetPatients :: KisAction [Entity Patient]
     PlacePatient :: PatientId -> BedId -> KisAction (Maybe PatientBedId)

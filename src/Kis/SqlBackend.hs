@@ -52,7 +52,7 @@ inMemoryBackend = do
 
 runAction :: MonadIO m => KisAction a -> ReaderT SqlBackend m a
 runAction (CreateBed name) = S.insert (Bed name)
-runAction (CreatePatient name) = S.insert (Patient name)
+runAction (CreatePatient patient) = S.insert patient
 runAction (GetPatient pid) = S.get pid
 runAction GetPatients = getPatients
 runAction (PlacePatient patId bedId) =

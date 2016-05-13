@@ -55,6 +55,7 @@ test-suite kis-proto-test
   main-is:             Spec.hs
   build-depends:       base
                      , bytestring
+                     , extra
                      , kis-proto
                      , hspec
                      , hspec-wai

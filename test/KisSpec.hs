@@ -17,16 +17,16 @@ spec = do
     describe "withKis" $
         it "can be parametrized" $
             withKis (Kis kis) $
-                void $ req (CreatePatient "Thomas")
+                void $ req (CreatePatient $ Patient "Thomas")
     describe "withInMemoryKis" $ do
         it "can create a Patient" $
             withInMemoryKis $ do
-                pid <- req (CreatePatient "Thomas")
+                pid <- req (CreatePatient $ Patient "Thomas")
                 patient <- req (GetPatient pid)
                 liftIO $ liftM patientName patient `shouldBe` (Just "Thomas")
         it "can place patient in bed" $
             withInMemoryKis $ do
-                pat <- req (CreatePatient "Thomas")
+                pat <- req (CreatePatient $ Patient "Thomas")
                 bed <- req (CreateBed "xy")
                 patBed <- req (PlacePatient pat bed)
                 liftIO $ patBed `shouldSatisfy` isJust
@@ -41,7 +41,7 @@ spec = do
                 liftIO $ patBed `shouldSatisfy` isNothing
         it "can't place patient in nonexisting bed" $
             withInMemoryKis $ do
-                pat <- req (CreatePatient "xy")
+                pat <- req (CreatePatient $ Patient "xy")
                 patBed <- req (PlacePatient pat (toSqlKey 1))
                 liftIO $ patBed `shouldSatisfy` isNothing
 
