@@ -11,8 +11,6 @@ where
 
 import Control.Monad.Extra
 import Control.Monad.IO.Class
-import Control.Monad.Logger
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader
 import Database.Persist.Sql as S
 import Database.Persist.Sqlite
@@ -23,21 +21,12 @@ import qualified Database.Esqueleto as E
 import Kis.Model
 import Kis.Kis
 
-withInMemoryKis :: KisClient (NoLoggingT IO) a -> IO a
+withInMemoryKis :: KisClient IO a -> IO a
 withInMemoryKis client =
-    runNoLoggingT $
-    withSqliteConn ":memory:" $ \backend -> do
-        void $ runSqlConn (runMigrationSilent migrateAll) backend
-        withKis (Kis $ kis backend) client
-    where
-        kis :: SqlBackend -> (forall a. KisAction a -> NoLoggingT IO a)
-        kis backend action = runSqlRequest action backend
-
-runSqlRequest :: (MonadBaseControl IO m, MonadIO m, MonadLogger m) => KisAction a -> SqlBackend -> m a
-runSqlRequest req backend = runSqlConn (runAction req) backend
+    inMemoryBackend >>= \backend -> runClient backend client
 
 runClient :: SqlBackend -> KisClient IO a -> IO a
-runClient backend client = do
+runClient backend client =
     runReaderT client (Kis kis)
     where
         kis :: forall a. KisAction a -> IO a
