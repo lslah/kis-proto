@@ -45,7 +45,7 @@ spec = do
                 patBed <- req (PlacePatient pat (toSqlKey 1))
                 liftIO $ patBed `shouldSatisfy` isNothing
 
-kis :: KisAction a -> KisClient IO a
+kis :: KisAction a -> IO a
 kis (CreatePatient _) = return (toSqlKey 1)
 kis _ = undefined
 

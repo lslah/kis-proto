@@ -28,12 +28,12 @@ data KisAction a where
 
 deriving instance Show (KisAction a)
 
-data Kis m = Kis { request :: forall a. KisAction a -> KisClient m a }
-type KisClient m a = ReaderT (Kis m) m a
+data Kis m = Kis { request :: forall a. KisAction a -> m a }
+type KisClient m = ReaderT (Kis m) m
 
 -- withProductionKis - uses Postgresql, Logging, etc.
 
-withKis :: Kis m -> KisClient m () -> m ()
+withKis :: Kis m -> KisClient m a -> m a
 withKis kis action = runReaderT action kis
 
 _logShow :: (MonadLogger m, Show a) => Text -> a -> m ()

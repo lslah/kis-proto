@@ -16,4 +16,6 @@ import Kis.SqlBackend
 import Control.Monad.RWS
 
 req :: Monad m => KisAction a -> KisClient m a
-req action = asks request >>= ($ action)
+req action = do
+    req' <- asks request
+    lift $ req' action

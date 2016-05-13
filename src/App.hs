@@ -3,5 +3,7 @@ module App
     )
 where
 
+import Web
+
 appMain :: IO ()
-appMain = return ()
+appMain = webMain
