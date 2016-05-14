@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -10,18 +11,18 @@ where
 import Database.Persist.TH
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
-Patient
+Patient json
     name String
-    deriving Show
+    deriving Show Eq
 Bed
     name String
-    deriving Show
+    deriving Show Eq
 
 PatientBed
     patientId PatientId
     bedId BedId
     UniquePatientId patientId
     UniqueBedId bedId
-    deriving Show
+    deriving Show Eq
 |]
 
