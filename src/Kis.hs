@@ -1,7 +1,10 @@
 module Kis
     ( KisAction(..)
+    , KisConfig(..)
     , KisClient
     , Kis(..)
+    , getKisTime
+    , waitForKisTime
     , withInMemoryKis
     , withKis
     , req
@@ -17,5 +20,5 @@ import Control.Monad.RWS
 
 req :: Monad m => KisAction a -> KisClient m a
 req action = do
-    req' <- asks request
-    lift $ req' action
+    reqH <- asks k_requestHandler
+    lift $ reqH action

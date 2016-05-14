@@ -21,13 +21,13 @@ import qualified Database.Esqueleto as E
 import Kis.Model
 import Kis.Kis
 
-withInMemoryKis :: KisClient IO a -> IO a
-withInMemoryKis client =
-    inMemoryBackend >>= \backend -> runClient backend client
+withInMemoryKis :: KisConfig -> KisClient IO a -> IO a
+withInMemoryKis config client =
+    inMemoryBackend >>= \backend -> runClient backend config client
 
-runClient :: SqlBackend -> KisClient IO a -> IO a
-runClient backend client =
-    runReaderT client (Kis kis)
+runClient :: SqlBackend -> KisConfig -> KisClient IO a -> IO a
+runClient backend (KisConfig kisTime) client =
+    runReaderT client (Kis kis kisTime)
     where
         kis :: forall a. KisAction a -> IO a
         kis action = runSqlConn (runAction action) backend

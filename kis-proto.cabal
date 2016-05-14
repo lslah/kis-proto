@@ -26,6 +26,7 @@ library
                      , persistent-template
                      , Spock
                      , text
+                     , time
                      , transformers
                      , wai
                      , wai-middleware-static
@@ -35,7 +36,10 @@ library
                      , Kis.Kis
                      , Kis.Model
                      , Kis.SqlBackend
+                     , Kis.Time
                      , Web
+                     , Simulator.Sim
+                     , Simulator.Template
   ghc-options:       -Wall -fwarn-incomplete-patterns
 
 executable kis-proto
@@ -59,6 +63,7 @@ test-suite kis-proto-test
                      , persistent
                      , persistent-sqlite
                      , QuickCheck
+                     , time
                      , transformers
                      , wai-extra
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall -fwarn-incomplete-patterns
