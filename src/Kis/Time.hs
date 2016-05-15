@@ -1,21 +1,85 @@
 module Kis.Time
    ( TimeOffset(..)
-   , KisTime(..)
+   , Clock(..)
+   , realTimeClock
+   , virtualTimeClock
    )
 where
 
 import Data.Time.Clock
+import System.Time.Extra
 
 newtype TimeOffset = TimeOffset DiffTime
 
--- | KisTime indicates wheter KIS is running in real time,
--- or in virtual time (for simulation). If running in Virtual
--- time the time multiplier and starting point of the simulation
--- are in the Type aswell
-data KisTime = RealTime | VirtualTime UTCTime Int
+data Clock =
+    Clock
+    { c_getTime :: IO UTCTime
+    , c_waitFor :: TimeOffset -> IO ()
+    , c_waitUntil :: UTCTime -> IO ()
+    }
 
--- data VirtualTime =
---     VirtualTime
---     { vt_startingPoint :: UTCTime
---     , vt_multiplier :: Int
---     }
+getVirtualTime ::
+       UTCTime -- Reference timestamp for t = 0
+    -> Double  -- Time multiplier
+    -> IO UTCTime
+getVirtualTime ref mult =
+  case mult of
+  -- | running in real time
+   1 -> getCurrentTime
+  -- | running in virtual time
+   _ ->
+     do now <- getCurrentTime
+        let timeElapsed = diffUTCTime now ref
+            virtualDiffTime = timeElapsed * (convert mult)
+        return $ addUTCTime virtualDiffTime ref
+
+waitForVirtualTime ::
+    Double -- Time multiplier
+    -> TimeOffset
+    -> IO ()
+waitForVirtualTime mult (TimeOffset diffTime) =
+    sleep $ diffTimeAsDouble / mult
+    where
+      diffTimeAsDouble = convert diffTime :: Double
+
+waitUntilVirtualTime ::
+       UTCTime -- Reference timestamp for t = 0
+    -> Double -- Time multiplier
+    -> UTCTime -- time to wakeup
+    -> IO ()
+waitUntilVirtualTime ref mult time =
+  do virtNow <- getVirtualTime ref mult
+     let timeToWait = diffUTCTime time virtNow
+     case timeToWait < 0 of
+      True -> return ()
+      False -> waitForVirtualTime mult (TimeOffset $ convert timeToWait)
+
+waitUntilRealTime :: UTCTime -> IO ()
+waitUntilRealTime time =
+  do now <- getCurrentTime
+     let timeToWait = diffUTCTime time now
+     case timeToWait < 0 of
+      True -> return ()
+      False -> sleep $ convert timeToWait
+
+realTimeClock :: Clock
+realTimeClock =
+    Clock
+    { c_getTime = getCurrentTime
+    , c_waitFor = \(TimeOffset diffTime) -> sleep $ convert diffTime
+    , c_waitUntil = waitUntilRealTime
+    }
+
+virtualTimeClock ::
+       UTCTime
+    -> Double
+    -> Clock
+virtualTimeClock ref mult =
+    Clock
+    { c_getTime = getVirtualTime ref mult
+    , c_waitFor = waitForVirtualTime mult
+    , c_waitUntil = waitUntilVirtualTime ref mult
+    }
+
+convert :: (Real a, Fractional b) => a -> b
+convert = fromRational . toRational

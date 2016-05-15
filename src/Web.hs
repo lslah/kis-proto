@@ -13,7 +13,7 @@ import Web.Spock.Safe
 
 import Kis
 import Kis.SqlBackend
-import Kis.Time(KisTime(..))
+import Kis.Time
 
 __ASSET_DIR__ :: FilePath
 __ASSET_DIR__ = "frontend"
@@ -28,7 +28,7 @@ web runKisClient =
 inMemoryWeb :: IO Middleware
 inMemoryWeb = do
     backend <- inMemoryBackend
-    web (runClient backend (KisConfig RealTime))
+    web (runClient backend (KisConfig realTimeClock))
 
 inMemoryApplication :: IO Application
 inMemoryApplication = spockAsApp inMemoryWeb

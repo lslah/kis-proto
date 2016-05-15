@@ -5,8 +5,6 @@
 
 module Kis.Kis
     ( withKis
-    , getKisTime
-    , waitForKisTime
     , KisAction(..)
     , KisClient
     , KisConfig(..)
@@ -37,35 +35,11 @@ deriving instance Show (KisAction a)
 data Kis m =
     Kis
     { k_requestHandler :: forall a. KisAction a -> m a
-    , k_time :: KisTime
+    , k_clock :: Clock
     }
 type KisClient m = ReaderT (Kis m) m
 
-data KisConfig = KisConfig KisTime
-
-getKisTime :: (MonadIO m) => KisClient m UTCTime
-getKisTime =
-    do kisTime <- asks k_time
-       case kisTime of
-         RealTime -> liftIO getCurrentTime
-         VirtualTime virtualTimeStart virtualTimeMult ->
-             do now <- liftIO getCurrentTime
-                let timeElapsed = diffUTCTime now virtualTimeStart
-                    virtualDiffTime =
-                        (timeElapsed * (toDiffTime virtualTimeMult))
-                liftIO . return $ addUTCTime virtualDiffTime virtualTimeStart
-  where
-    toDiffTime = fromIntegral . toInteger
-
-waitForKisTime :: (MonadIO m) => TimeOffset -> KisClient m ()
-waitForKisTime (TimeOffset diffTime) =
-    do kisTime <- asks k_time
-       case kisTime of
-         RealTime -> liftIO (sleep diffTimeInSeconds)
-         VirtualTime _ mult ->
-             liftIO . sleep $ diffTimeInSeconds / (fromIntegral mult :: Double)
-    where
-      diffTimeInSeconds = fromRational $ toRational diffTime :: Double
+data KisConfig = KisConfig Clock
 
 -- withProductionKis - uses Postgresql, Logging, etc.
 

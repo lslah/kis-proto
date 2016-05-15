@@ -26,11 +26,11 @@ withInMemoryKis config client =
     inMemoryBackend >>= \backend -> runClient backend config client
 
 runClient :: SqlBackend -> KisConfig -> KisClient IO a -> IO a
-runClient backend (KisConfig kisTime) client =
-    runReaderT client (Kis kis kisTime)
-    where
-        kis :: forall a. KisAction a -> IO a
-        kis action = runSqlConn (runAction action) backend
+runClient backend (KisConfig clock) client =
+    runReaderT client (Kis (handleKisRequest backend) clock)
+
+handleKisRequest :: SqlBackend -> forall a. KisAction a -> IO a
+handleKisRequest backend req = runSqlConn (runAction req) backend
 
 inMemoryBackend :: IO SqlBackend
 inMemoryBackend = do

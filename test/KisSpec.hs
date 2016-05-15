@@ -21,7 +21,7 @@ spec :: Spec
 spec = do
     describe "withKis" $
         it "can be parametrized" $
-            withKis (Kis kis RealTime) $
+            withKis (Kis kis realTimeClock) $
                 void $ req (CreatePatient $ Patient "Thomas")
     describe "withInMemoryKis" $ do
         it "can create a Patient" $
@@ -50,29 +50,33 @@ spec = do
                 patBed <- req (PlacePatient pat (toSqlKey 1))
                 liftIO $ patBed `shouldSatisfy` isNothing
     describe "simulator" $ do
-         it "can run a simple template" $
-            withInMemoryKis kisConfig $ do
-                runSimulator __template1__
-                patients <- req GetPatients
-                liftIO $ patients `shouldSatisfy` (not . null)
-                let (Entity pid _) = head patients
-                patient <- req (GetPatient pid)
-                liftIO $ liftM patientName patient `shouldBe` (Just "Simon")
-         it "can run in double speed" $ do
+         it "can run a simple template with high multiplier" $ do
             now <- getCurrentTime
-            let doubleTime = KisConfig (VirtualTime now 2)
-            -- The default offset for the action in the given template
-            -- is 10 seconds, therefore the timeout is for 6 seconds
-            -- TODO make this more explicit
-            result <- timeout (6* 10^6) $
-                          withInMemoryKis doubleTime (runSimulator __template1__)
+            result <- timeout (2 * 10^3) $
+                withInMemoryKis (KisConfig (virtualTimeClock now 10000)) $
+                    do runSimulator __template1__
+                       patients <- req GetPatients
+                       liftIO $ patients `shouldSatisfy` (not . null)
+                       let (Entity pid _) = head patients
+                       patient <- req (GetPatient pid)
+                       liftIO $ liftM patientName patient `shouldBe` (Just "Simon")
             result `shouldSatisfy` isJust
-
+         it "simulator waits for predicted amount of time" $ do
+            now <- getCurrentTime
+            result <- timeout (1 * 10^3) $
+                withInMemoryKis (KisConfig (virtualTimeClock now 10000)) $
+                    do runSimulator __template1__
+                       patients <- req GetPatients
+                       liftIO $ patients `shouldSatisfy` (not . null)
+                       let (Entity pid _) = head patients
+                       patient <- req (GetPatient pid)
+                       liftIO $ liftM patientName patient `shouldBe` (Just "Simon")
+            result `shouldSatisfy` isNothing
 
 kis :: KisAction a -> IO a
 kis (CreatePatient _) = return (toSqlKey 1)
 kis _ = undefined
 
 kisConfig :: KisConfig
-kisConfig = KisConfig RealTime
+kisConfig = KisConfig realTimeClock
 

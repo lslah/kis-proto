@@ -30,7 +30,7 @@ simMain :: IO ()
 simMain =
     do now <- getCurrentTime
        backend <- inMemoryBackend
-       let kisConfig = KisConfig (VirtualTime now multiplier)
+       let kisConfig = KisConfig (virtualTimeClock now multiplier)
        runClient backend kisConfig (runSimulator __template1__)
     where
       multiplier = 2
