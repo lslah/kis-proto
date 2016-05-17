@@ -49,29 +49,6 @@ spec = do
                 pat <- req (CreatePatient $ Patient "xy")
                 patBed <- req (PlacePatient pat (toSqlKey 1))
                 liftIO $ patBed `shouldSatisfy` isNothing
-    describe "simulator" $ do
-         it "can run a simple template with high multiplier" $ do
-            now <- getCurrentTime
-            result <- timeout (2 * 10^3) $
-                withInMemoryKis (KisConfig (virtualTimeClock now 10000)) $
-                    do runSimulator __template1__
-                       patients <- req GetPatients
-                       liftIO $ patients `shouldSatisfy` (not . null)
-                       let (Entity pid _) = head patients
-                       patient <- req (GetPatient pid)
-                       liftIO $ liftM patientName patient `shouldBe` (Just "Simon")
-            result `shouldSatisfy` isJust
-         it "simulator waits for predicted amount of time" $ do
-            now <- getCurrentTime
-            result <- timeout (1 * 10^3) $
-                withInMemoryKis (KisConfig (virtualTimeClock now 10000)) $
-                    do runSimulator __template1__
-                       patients <- req GetPatients
-                       liftIO $ patients `shouldSatisfy` (not . null)
-                       let (Entity pid _) = head patients
-                       patient <- req (GetPatient pid)
-                       liftIO $ liftM patientName patient `shouldBe` (Just "Simon")
-            result `shouldSatisfy` isNothing
 
 kis :: KisAction a -> IO a
 kis (CreatePatient _) = return (toSqlKey 1)
