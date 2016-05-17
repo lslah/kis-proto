@@ -14,7 +14,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Database.Persist.Sql as S
 import Database.Persist.Sqlite
-import Database.Sqlite
+import Database.Sqlite hiding (config)
 import Data.Maybe
 import qualified Database.Esqueleto as E
 

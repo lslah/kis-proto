@@ -17,8 +17,6 @@ import Control.Monad.RWS hiding (asks)
 import Control.Monad.Trans.Reader
 import Database.Persist
 import Data.Text
-import Data.Time.Clock
-import System.Time.Extra (sleep)
 
 import Kis.Model
 import Kis.Time

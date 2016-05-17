@@ -6,16 +6,12 @@ where
 
 import Kis
 import Kis.Time
-import Simulator.Sim
-import Simulator.Template
 
 import Control.Monad
 import Control.Monad.IO.Class
 import Database.Persist.Sqlite
-import Data.Time.Clock
 import Data.Maybe
 import Test.Hspec
-import System.Timeout
 
 spec :: Spec
 spec = do
