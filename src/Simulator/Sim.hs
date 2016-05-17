@@ -1,6 +1,8 @@
 {-# LANGUAGE RankNTypes             #-}
 module Simulator.Sim
-    ( runSimulator )
+    ( runSimulator
+    , simMain
+    )
 where
 
 import Control.Monad.IO.Class
@@ -18,8 +20,8 @@ runSimulator template =
      bedId <- req (CreateBed "1a")
      loop template (patientId, bedId)
        where
-         loop template templateInfo =
-           case template of
+         loop template' templateInfo =
+           case template' of
             Template [] -> return ()
             Template ((SimulatorAction kisAction, timeToNextAction):rest) ->
                 do waitForKisTime timeToNextAction
