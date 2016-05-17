@@ -23,15 +23,10 @@ getVirtualTime ::
     -> Double  -- Time multiplier
     -> IO UTCTime
 getVirtualTime ref mult =
-  case mult of
-  -- | running in real time
-   1 -> getCurrentTime
-  -- | running in virtual time
-   _ ->
-     do now <- getCurrentTime
-        let timeElapsed = diffUTCTime now ref
-            virtualDiffTime = timeElapsed * (convert mult)
-        return $ addUTCTime virtualDiffTime ref
+    do now <- getCurrentTime
+       let timeElapsed = diffUTCTime now ref
+           virtualDiffTime = timeElapsed * (convert mult)
+       return $ addUTCTime virtualDiffTime ref
 
 waitForVirtualTime ::
     Double -- Time multiplier
