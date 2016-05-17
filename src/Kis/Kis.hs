@@ -7,17 +7,21 @@ module Kis.Kis
     ( withKis
     , KisAction(..)
     , KisClient
+    , KisConfig(..)
     , Kis(..)
     )
 where
 
 import Control.Monad.Logger
-import Control.Monad.RWS
+import Control.Monad.RWS hiding (asks)
 import Control.Monad.Trans.Reader
 import Database.Persist
 import Data.Text
+import Data.Time.Clock
+import System.Time.Extra (sleep)
 
 import Kis.Model
+import Kis.Time
 
 data KisAction a where
     CreateBed :: String -> KisAction BedId
@@ -28,8 +32,14 @@ data KisAction a where
 
 deriving instance Show (KisAction a)
 
-data Kis m = Kis { request :: forall a. KisAction a -> m a }
+data Kis m =
+    Kis
+    { k_requestHandler :: forall a. KisAction a -> m a
+    , k_clock :: Clock
+    }
 type KisClient m = ReaderT (Kis m) m
+
+data KisConfig = KisConfig Clock
 
 -- withProductionKis - uses Postgresql, Logging, etc.
 
