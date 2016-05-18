@@ -47,7 +47,7 @@ spec = do
                 void $ req (PlacePatient pat (toSqlKey 1)))
             `shouldThrow` (== ConstraintViolation)
 
-kis :: KisAction a -> IO a
+kis :: KisRequest a -> IO a
 kis (CreatePatient _) = return (toSqlKey 1)
 kis _ = undefined
 

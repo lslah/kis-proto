@@ -33,7 +33,7 @@ runClient backend (KisConfig clock) client =
     runReaderT client (Kis (handleKisRequest backend) clock)
 
 handleKisRequest :: (MonadCatch m, MonadBaseControl IO m, MonadIO m) =>
-    SqlBackend -> forall a. KisAction a -> m a
+    SqlBackend -> forall a. KisRequest a -> m a
 handleKisRequest backend req = runSqlConn (convertSqliteException $ runAction req) backend
 
 convertSqliteException :: MonadCatch m => m a -> m a
@@ -51,7 +51,7 @@ inMemoryBackend = liftIO $ do
     return backend
 
 runAction :: (MonadCatch m, MonadIO m)
-          => KisAction a -> ReaderT SqlBackend m a
+          => KisRequest a -> ReaderT SqlBackend m a
 runAction (CreateBed name) = S.insert (Bed name)
 runAction (CreatePatient patient) = S.insert patient
 runAction (GetPatient pid) = S.get pid

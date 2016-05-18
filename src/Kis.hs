@@ -1,5 +1,5 @@
 module Kis
-    ( KisAction(..)
+    ( KisRequest(..)
     , KisConfig(..)
     , KisClient
     , Kis(..)
@@ -19,7 +19,7 @@ import Kis.SqlBackend
 
 import Control.Monad.RWS
 
-req :: Monad m => KisAction a -> KisClient m a
+req :: Monad m => KisRequest a -> KisClient m a
 req action = do
     reqH <- asks k_requestHandler
     lift $ reqH action
