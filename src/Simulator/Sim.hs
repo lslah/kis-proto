@@ -31,7 +31,7 @@ runSimulator template =
 simMain :: IO ()
 simMain =
     do now <- getCurrentTime
-       backend <- inMemoryBackend
+       backend <- sqliteBackend InMemory
        let kisConfig = KisConfig (virtualTimeClock now multiplier)
        runClient backend kisConfig (runSimulator __template1__)
     where

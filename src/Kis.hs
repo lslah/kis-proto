@@ -5,7 +5,8 @@ module Kis
     , Kis(..)
     , KisException(..)
     , waitForKisTime
-    , withInMemoryKis
+    , withSqliteKis
+    , SqliteBackendType(..)
     , withKis
     , req
     , module Kis.Model

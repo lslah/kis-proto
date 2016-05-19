@@ -27,7 +27,7 @@ web runKisClient =
 
 inMemoryWeb :: IO Middleware
 inMemoryWeb = do
-    backend <- inMemoryBackend
+    backend <- sqliteBackend InMemory
     web (runClient backend (KisConfig realTimeClock))
 
 inMemoryApplication :: IO Application

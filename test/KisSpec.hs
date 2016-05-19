@@ -22,12 +22,12 @@ spec = do
                 void $ req (CreatePatient $ Patient "Thomas")
     describe "withInMemoryKis" $ do
         it "can create a Patient" $
-            withInMemoryKis kisConfig $ do
+            withSqliteKis InMemory kisConfig $ do
                 pid <- req (CreatePatient $ Patient "Thomas")
                 patient <- req (GetPatient pid)
                 liftIO $ liftM patientName patient `shouldBe` (Just "Thomas")
         it "can place patient in bed" $
-            withInMemoryKis kisConfig $ do
+            withSqliteKis InMemory kisConfig $ do
                 pat <- req (CreatePatient $ Patient "Thomas")
                 bed <- req (CreateBed "xy")
                 patBed <- req (PlacePatient pat bed)
@@ -37,12 +37,12 @@ spec = do
         -- patient-bed-relations of nonexisting entities? What happens when a
         -- patient is assigned to a deleted bed?
         it "can't place nonexisting patient in bed" $
-            (withInMemoryKis kisConfig $ do
+            (withSqliteKis InMemory kisConfig $ do
                 bed <- req (CreateBed "xy")
                 void $ req (PlacePatient (toSqlKey 1) bed))
             `shouldThrow` (== ConstraintViolation)
         it "can't place patient in nonexisting bed" $
-            (withInMemoryKis kisConfig $ do
+            (withSqliteKis InMemory kisConfig $ do
                 pat <- req (CreatePatient $ Patient "xy")
                 void $ req (PlacePatient pat (toSqlKey 1)))
             `shouldThrow` (== ConstraintViolation)

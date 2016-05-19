@@ -21,6 +21,7 @@ library
                      , monad-control
                      , esqueleto
                      , exceptions
+                     , resource-pool
                      , extra
                      , monad-logger
                      , mtl
