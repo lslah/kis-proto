@@ -17,7 +17,10 @@ library
   hs-source-dirs:      src
   build-depends:       base >= 4.7 && < 5
                      , containers
+                     , either
+                     , monad-control
                      , esqueleto
+                     , exceptions
                      , extra
                      , monad-logger
                      , mtl
@@ -56,10 +59,12 @@ test-suite kis-proto-test
   main-is:             Spec.hs
   build-depends:       base
                      , aeson
+                     , either
                      , extra
                      , hspec
                      , hspec-wai
                      , kis-proto
+                     , mtl
                      , persistent
                      , persistent-sqlite
                      , QuickCheck

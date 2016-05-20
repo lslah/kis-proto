@@ -15,10 +15,10 @@ newtype SimulatorAction m a = SimulatorAction (a -> KisClient m a)
 
 data Template m a = Template [(SimulatorAction m a, TimeOffset)]
 
-__template1__ :: (MonadIO m) => Template m (PatientId, BedId)
+__template1__ :: MonadIO m => Template m (PatientId, BedId)
 __template1__ = Template [ (SimulatorAction movePatient, TimeOffset 10) ]
 
-movePatient :: (MonadIO m) => (PatientId, BedId) -> KisClient m (PatientId, BedId)
+movePatient :: MonadIO m => (PatientId, BedId) -> KisClient m (PatientId, BedId)
 movePatient (patientId, _) =
     do bedId <- req (CreateBed "someBed")
        void $ req (PlacePatient patientId bedId)

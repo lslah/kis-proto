@@ -9,14 +9,16 @@ module Kis.Kis
     , KisClient
     , KisConfig(..)
     , Kis(..)
+    , KisException(..)
     )
 where
 
 import Control.Monad.Logger
 import Control.Monad.RWS hiding (asks)
-import Control.Monad.Trans.Reader
+import Control.Monad.Reader
 import Database.Persist
 import Data.Text
+import GHC.Exception
 
 import Kis.Model
 import Kis.Time
@@ -39,9 +41,14 @@ type KisClient m = ReaderT (Kis m) m
 
 data KisConfig = KisConfig Clock
 
--- withProductionKis - uses Postgresql, Logging, etc.
+data KisException =
+    ConstraintViolation
+    | OtherError Text
+    deriving (Show, Eq)
 
-withKis :: Kis m -> KisClient m a -> m a
+instance Exception KisException
+
+withKis :: Monad m => Kis m -> KisClient m a -> m a
 withKis kis action = runReaderT action kis
 
 _logShow :: (MonadLogger m, Show a) => Text -> a -> m ()

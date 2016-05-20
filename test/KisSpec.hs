@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
 module KisSpec
     ( spec
     )
@@ -8,7 +9,7 @@ import Kis
 import Kis.Time
 
 import Control.Monad
-import Control.Monad.IO.Class
+import Control.Monad.Except
 import Database.Persist.Sqlite
 import Data.Maybe
 import Test.Hspec
@@ -36,15 +37,15 @@ spec = do
         -- patient-bed-relations of nonexisting entities? What happens when a
         -- patient is assigned to a deleted bed?
         it "can't place nonexisting patient in bed" $
-            withInMemoryKis kisConfig $ do
+            (withInMemoryKis kisConfig $ do
                 bed <- req (CreateBed "xy")
-                patBed <- req (PlacePatient (toSqlKey 1) bed)
-                liftIO $ patBed `shouldSatisfy` isNothing
+                void $ req (PlacePatient (toSqlKey 1) bed))
+            `shouldThrow` (== ConstraintViolation)
         it "can't place patient in nonexisting bed" $
-            withInMemoryKis kisConfig $ do
+            (withInMemoryKis kisConfig $ do
                 pat <- req (CreatePatient $ Patient "xy")
-                patBed <- req (PlacePatient pat (toSqlKey 1))
-                liftIO $ patBed `shouldSatisfy` isNothing
+                void $ req (PlacePatient pat (toSqlKey 1)))
+            `shouldThrow` (== ConstraintViolation)
 
 kis :: KisAction a -> IO a
 kis (CreatePatient _) = return (toSqlKey 1)

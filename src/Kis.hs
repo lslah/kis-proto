@@ -3,6 +3,7 @@ module Kis
     , KisConfig(..)
     , KisClient
     , Kis(..)
+    , KisException(..)
     , waitForKisTime
     , withInMemoryKis
     , withKis
