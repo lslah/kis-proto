@@ -12,7 +12,7 @@ import Network.Wai
 import Web.Spock.Safe
 
 import Kis
-import Kis.SqlBackend
+import Kis.SqliteBackend
 import Kis.Time
 
 __ASSET_DIR__ :: FilePath

@@ -9,7 +9,7 @@ import Control.Monad.IO.Class
 import Data.Time.Clock
 
 import Kis
-import Kis.SqlBackend
+import Kis.SqliteBackend
 import Kis.Time
 import Simulator.Template
 

@@ -40,6 +40,7 @@ library
                      , Kis.Kis
                      , Kis.Model
                      , Kis.SqlBackend
+                     , Kis.SqliteBackend
                      , Kis.Time
                      , Web
                      , Simulator.Sim

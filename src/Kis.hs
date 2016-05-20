@@ -16,7 +16,7 @@ where
 import Kis.Kis
 import Kis.Model
 import Kis.Time
-import Kis.SqlBackend
+import Kis.SqliteBackend
 
 import Control.Monad.RWS
 

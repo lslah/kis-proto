@@ -4,9 +4,9 @@
 {-# LANGUAGE RankNTypes                 #-}
 module Kis.SqlBackend
     ( runClient
-    , sqliteBackend
-    , SqliteBackendType(..)
-    , withSqliteKis
+    , sqlMigrate
+    , ExceptionMap
+    , KisBackend(..)
     )
 where
 
@@ -15,65 +15,44 @@ import Control.Monad.Except
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader
 import Database.Persist.Sql as S
-import Database.Persist.Sqlite
-import Database.Sqlite as Sqlite hiding (config)
-import Data.Pool
-import Data.Monoid
 import qualified Database.Esqueleto as E
-import qualified Data.Text as T
 
 import Kis.Model
 import Kis.Kis
 
-withSqliteKis :: SqliteBackendType -> KisConfig -> KisClient IO a -> IO a
-withSqliteKis backendType config client =
-    sqliteBackend backendType >>= \backend -> runClient backend config client
+-- | Every sql backend should provide a function of type 'ExceptionMap e'
+-- which converts the backend specific exceptions (e.g. SqliteException)
+-- to 'KisException's.
+type ExceptionMap e = e -> KisException
 
-runClient :: (MonadCatch m, MonadBaseControl IO m, MonadIO m)
-          => Either SqlBackend ConnectionPool -> KisConfig -> KisClient m a -> m a
+data KisBackend e =
+    SingleBackend SqlBackend (ExceptionMap e)
+    | PoolBackend ConnectionPool (ExceptionMap e)
+
+runClient :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
+          => KisBackend e -> KisConfig -> KisClient m a -> m a
 runClient backend (KisConfig clock) client =
     runReaderT client (Kis (handleKisRequest backend) clock)
 
-handleKisRequest :: (MonadCatch m, MonadBaseControl IO m, MonadIO m) =>
-    Either SqlBackend ConnectionPool -> forall a. KisRequest a -> m a
+handleKisRequest :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m) =>
+    KisBackend e -> forall a. KisRequest a -> m a
 handleKisRequest backend req =
     runSql backend handleRequest
-    where handleRequest = convertSqliteException (runAction req)
+    where handleRequest = runAction req
 
-runSql :: (MonadBaseControl IO m, MonadIO m)
-       => Either SqlBackend ConnectionPool -> SqlPersistT m a -> m a
-runSql backend query = either (runSqlConn query) (runSqlPool query) backend
+convertException :: (Exception e, MonadCatch m) => (e -> KisException) -> m a -> m a
+convertException exceptionMap = handle (throwM . exceptionMap)
 
-migrate' :: (MonadBaseControl IO m, MonadIO m)
-       => Either SqlBackend ConnectionPool -> m ()
-migrate' backend = void $ runSql backend (runMigrationSilent migrateAll)
+runSql :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
+       => KisBackend e -> SqlPersistT m a -> m a
+runSql (SingleBackend backend exceptionMap) query =
+    convertException exceptionMap (runSqlConn query backend)
+runSql (PoolBackend pool exceptionMap) query =
+    convertException exceptionMap (runSqlPool query pool)
 
-convertSqliteException :: MonadCatch m => m a -> m a
-convertSqliteException = handle sqliteExceptions
-    where
-      sqliteExceptions (SqliteException ErrorConstraint _ _) = throwM ConstraintViolation
-      sqliteExceptions (SqliteException errorType x y) = throwM (OtherError (T.pack (show errorType) <> ": " <> x <> " " <> y))
-
-data SqliteBackendType = InMemory | PoolBackend T.Text Int
-
-sqliteBackend :: (MonadBaseControl IO m, MonadIO m) => SqliteBackendType -> m (Either SqlBackend ConnectionPool)
-sqliteBackend backendType = do
-    backend <- case backendType of
-        InMemory -> liftM Left (singleBackend ":memory:")
-        (PoolBackend filename size) ->
-            liftM Right $
-                liftIO $ createPool (singleBackend filename) (const $ return ()) 1 20 size
-    migrate' backend
-    return backend
-
-singleBackend :: MonadIO m => T.Text -> m SqlBackend
-singleBackend filename =
-    liftIO $ do
-        connection <- Sqlite.open filename
-        stmt <- Sqlite.prepare connection "PRAGMA foreign_keys = ON;"
-        void $ Sqlite.step stmt
-        Sqlite.finalize stmt
-        wrapConnection connection (\_ _ _ _ -> return ())
+sqlMigrate :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
+       => KisBackend e -> m ()
+sqlMigrate backend = void $ runSql backend (runMigrationSilent migrateAll)
 
 runAction :: (MonadCatch m, MonadIO m)
           => KisRequest a -> ReaderT SqlBackend m a
