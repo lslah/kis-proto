@@ -16,40 +16,42 @@ import Test.Hspec
 
 spec :: Spec
 spec = do
-    describe "withKis" $
+    describe "runClient" $
         it "can be parametrized" $
-            withKis (Kis kis realTimeClock) $
+            runClient (Kis customKisFunction realTimeClock) $
                 void $ req (CreatePatient $ Patient "Thomas")
-    describe "withInMemoryKis" $ do
+    describe "runSingleClientSqlite" $ do
         it "can create a Patient" $
-            withSqliteKis InMemory kisConfig $ do
+            runSingleClientSqlite InMemory kisConfig $ do
                 pid <- req (CreatePatient $ Patient "Thomas")
                 patient <- req (GetPatient pid)
                 liftIO $ liftM patientName patient `shouldBe` (Just "Thomas")
         it "can place patient in bed" $
-            withSqliteKis InMemory kisConfig $ do
+            runSingleClientSqlite InMemory kisConfig $ do
                 pat <- req (CreatePatient $ Patient "Thomas")
                 bed <- req (CreateBed "xy")
                 patBed <- req (PlacePatient pat bed)
                 liftIO $ patBed `shouldSatisfy` isJust
-        -- Are the next two statements necessary? Should we always aim for a
-        -- consistent database or deal with inconsistencies like
-        -- patient-bed-relations of nonexisting entities? What happens when a
-        -- patient is assigned to a deleted bed?
         it "can't place nonexisting patient in bed" $
-            (withSqliteKis InMemory kisConfig $ do
+            (runSingleClientSqlite InMemory kisConfig $ do
                 bed <- req (CreateBed "xy")
                 void $ req (PlacePatient (toSqlKey 1) bed))
             `shouldThrow` (== ConstraintViolation)
         it "can't place patient in nonexisting bed" $
-            (withSqliteKis InMemory kisConfig $ do
+            (runSingleClientSqlite InMemory kisConfig $ do
                 pat <- req (CreatePatient $ Patient "xy")
                 void $ req (PlacePatient pat (toSqlKey 1)))
             `shouldThrow` (== ConstraintViolation)
+    describe "withSqliteKis" $ do
+         it "can run two clients in sequence" $
+            withSqliteKis InMemory kisConfig $ \kis -> do
+                patId <- runClient kis $ req (CreatePatient $ Patient "Simon")
+                pats <- runClient kis $ req GetPatients
+                pats `shouldBe` [Entity patId (Patient "Simon")]
 
-kis :: KisRequest a -> IO a
-kis (CreatePatient _) = return (toSqlKey 1)
-kis _ = undefined
+customKisFunction :: KisRequest a -> IO a
+customKisFunction (CreatePatient _) = return (toSqlKey 1)
+customKisFunction _ = undefined
 
 kisConfig :: KisConfig
 kisConfig = KisConfig realTimeClock

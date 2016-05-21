@@ -3,7 +3,8 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE RankNTypes                 #-}
 module Kis.SqlBackend
-    ( runClient
+    ( buildKisWithBackend
+    , runClient
     , sqlMigrate
     , ExceptionMap
     , KisBackend(..)
@@ -29,10 +30,16 @@ data KisBackend e =
     SingleBackend SqlBackend (ExceptionMap e)
     | PoolBackend ConnectionPool (ExceptionMap e)
 
-runClient :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
-          => KisBackend e -> KisConfig -> KisClient m a -> m a
-runClient backend (KisConfig clock) client =
-    runReaderT client (Kis (handleKisRequest backend) clock)
+buildKisWithBackend ::
+    (MonadCatch m, MonadBaseControl IO m, MonadIO m, Exception e)
+    => KisBackend e
+    -> KisConfig
+    -> Kis m
+buildKisWithBackend backend (KisConfig clock) =
+    Kis (handleKisRequest backend) clock
+
+runClient :: Kis m -> KisClient m a -> m a
+runClient kis client = runReaderT client kis
 
 handleKisRequest :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m) =>
     KisBackend e -> forall a. KisRequest a -> m a
