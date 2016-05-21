@@ -1,7 +1,8 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Kis.ReadOnly
-    ( runReadOnlyClient
+    ( req
+    , runReadOnlyClient
     , KisReadOnlyClient
     )
 where
@@ -13,7 +14,7 @@ import Kis.Time
 
 data ReadOnlyKis m =
     ReadOnlyKis
-    { _rok_requestHandler :: forall a. KisReadRequest a -> m a
+    { rok_requestHandler :: forall a. KisReadRequest a -> m a
     , _rok_clock :: Clock
     }
 
@@ -27,4 +28,9 @@ toReadOnlyKis :: Kis m -> ReadOnlyKis m
 toReadOnlyKis (Kis reqHandler clock) =
     ReadOnlyKis roRequestHandler clock
     where
-      roRequestHandler action = reqHandler (Right action)
+      roRequestHandler request = reqHandler (Right request)
+
+req :: Monad m => KisReadRequest a -> KisReadOnlyClient m a
+req request =
+    do reqH <- asks rok_requestHandler
+       lift $ reqH request
