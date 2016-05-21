@@ -5,7 +5,7 @@
 
 module Kis.Kis
     ( withKis
-    , KisAction(..)
+    , KisRequest(..)
     , KisClient
     , KisConfig(..)
     , Kis(..)
@@ -23,18 +23,18 @@ import GHC.Exception
 import Kis.Model
 import Kis.Time
 
-data KisAction a where
-    CreateBed :: String -> KisAction BedId
-    CreatePatient :: Patient -> KisAction PatientId
-    GetPatient :: PatientId -> KisAction (Maybe Patient)
-    GetPatients :: KisAction [Entity Patient]
-    PlacePatient :: PatientId -> BedId -> KisAction (Maybe PatientBedId)
+data KisRequest a where
+    CreateBed :: String -> KisRequest BedId
+    CreatePatient :: Patient -> KisRequest PatientId
+    GetPatient :: PatientId -> KisRequest (Maybe Patient)
+    GetPatients :: KisRequest [Entity Patient]
+    PlacePatient :: PatientId -> BedId -> KisRequest (Maybe PatientBedId)
 
-deriving instance Show (KisAction a)
+deriving instance Show (KisRequest a)
 
 data Kis m =
     Kis
-    { k_requestHandler :: forall a. KisAction a -> m a
+    { k_requestHandler :: forall a. KisRequest a -> m a
     , k_clock :: Clock
     }
 type KisClient m = ReaderT (Kis m) m

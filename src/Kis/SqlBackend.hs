@@ -3,55 +3,59 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE RankNTypes                 #-}
 module Kis.SqlBackend
-    ( withInMemoryKis
-    , inMemoryBackend
-    , runClient
+    ( runClient
+    , sqlMigrate
+    , ExceptionMap
+    , KisBackend(..)
     )
 where
 
-import Control.Monad.Extra
-import Control.Monad.Except
-import Control.Monad.Trans.Reader
-import Control.Monad.Trans.Control
 import Control.Monad.Catch
+import Control.Monad.Except
+import Control.Monad.Trans.Control
+import Control.Monad.Trans.Reader
 import Database.Persist.Sql as S
-import Database.Persist.Sqlite
-import Database.Sqlite as Sqlite hiding (config)
 import qualified Database.Esqueleto as E
-import qualified Data.Text as T
 
 import Kis.Model
 import Kis.Kis
 
-withInMemoryKis :: KisConfig -> KisClient IO a -> IO a
-withInMemoryKis config client =
-    inMemoryBackend >>= \backend -> runClient backend config client
+-- | Every sql backend should provide a function of type 'ExceptionMap e'
+-- which converts the backend specific exceptions (e.g. SqliteException)
+-- to 'KisException's.
+type ExceptionMap e = e -> KisException
 
-runClient :: (MonadCatch m, MonadBaseControl IO m, MonadIO m)
-          => SqlBackend -> KisConfig -> KisClient m a -> m a
+data KisBackend e =
+    SingleBackend SqlBackend (ExceptionMap e)
+    | PoolBackend ConnectionPool (ExceptionMap e)
+
+runClient :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
+          => KisBackend e -> KisConfig -> KisClient m a -> m a
 runClient backend (KisConfig clock) client =
     runReaderT client (Kis (handleKisRequest backend) clock)
 
-handleKisRequest :: (MonadCatch m, MonadBaseControl IO m, MonadIO m) =>
-    SqlBackend -> forall a. KisAction a -> m a
-handleKisRequest backend req = runSqlConn (convertSqliteException $ runAction req) backend
+handleKisRequest :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m) =>
+    KisBackend e -> forall a. KisRequest a -> m a
+handleKisRequest backend req =
+    runSql backend handleRequest
+    where handleRequest = runAction req
 
-convertSqliteException :: MonadCatch m => m a -> m a
-convertSqliteException = handle sqliteExceptions
-    where
-      sqliteExceptions (SqliteException ErrorConstraint _ _) = throwM ConstraintViolation
-      sqliteExceptions (SqliteException errorType _ _) = throwM (OtherError (T.pack . show $ errorType))
+convertException :: (Exception e, MonadCatch m) => (e -> KisException) -> m a -> m a
+convertException exceptionMap = handle (throwM . exceptionMap)
 
-inMemoryBackend :: MonadIO m => m SqlBackend
-inMemoryBackend = liftIO $ do
-    connection <- Sqlite.open ":memory:"
-    void $ Sqlite.step =<< Sqlite.prepare connection "PRAGMA foreign_keys = ON;"
-    backend <- wrapConnection connection (\_ _ _ _ -> return ())
-    void $ runSqlConn (runMigrationSilent migrateAll) backend
-    return backend
+runSql :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
+       => KisBackend e -> SqlPersistT m a -> m a
+runSql (SingleBackend backend exceptionMap) query =
+    convertException exceptionMap (runSqlConn query backend)
+runSql (PoolBackend pool exceptionMap) query =
+    convertException exceptionMap (runSqlPool query pool)
+
+sqlMigrate :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
+       => KisBackend e -> m ()
+sqlMigrate backend = void $ runSql backend (runMigrationSilent migrateAll)
 
 runAction :: (MonadCatch m, MonadIO m)
-          => KisAction a -> ReaderT SqlBackend m a
+          => KisRequest a -> ReaderT SqlBackend m a
 runAction (CreateBed name) = S.insert (Bed name)
 runAction (CreatePatient patient) = S.insert patient
 runAction (GetPatient pid) = S.get pid

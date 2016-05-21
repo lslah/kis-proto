@@ -1,11 +1,12 @@
 module Kis
-    ( KisAction(..)
+    ( KisRequest(..)
     , KisConfig(..)
     , KisClient
     , Kis(..)
     , KisException(..)
     , waitForKisTime
-    , withInMemoryKis
+    , withSqliteKis
+    , SqliteBackendType(..)
     , withKis
     , req
     , module Kis.Model
@@ -15,11 +16,11 @@ where
 import Kis.Kis
 import Kis.Model
 import Kis.Time
-import Kis.SqlBackend
+import Kis.SqliteBackend
 
 import Control.Monad.RWS
 
-req :: Monad m => KisAction a -> KisClient m a
+req :: Monad m => KisRequest a -> KisClient m a
 req action = do
     reqH <- asks k_requestHandler
     lift $ reqH action

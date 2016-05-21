@@ -12,7 +12,7 @@ import Network.Wai
 import Web.Spock.Safe
 
 import Kis
-import Kis.SqlBackend
+import Kis.SqliteBackend
 import Kis.Time
 
 __ASSET_DIR__ :: FilePath
@@ -27,7 +27,7 @@ web runKisClient =
 
 inMemoryWeb :: IO Middleware
 inMemoryWeb = do
-    backend <- inMemoryBackend
+    backend <- sqliteBackend InMemory
     web (runClient backend (KisConfig realTimeClock))
 
 inMemoryApplication :: IO Application
