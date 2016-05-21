@@ -5,7 +5,14 @@
 
 module Kis.Kis
     ( withKis
-    , KisRequest(..)
+    , createPatient
+    , createBed
+    , placePatient
+    , getPatient
+    , getPatients
+    , KisRequest
+    , KisWriteRequest(..)
+    , KisReadRequest(..)
     , KisClient
     , KisConfig(..)
     , Kis(..)
@@ -23,14 +30,20 @@ import GHC.Exception
 import Kis.Model
 import Kis.Time
 
-data KisRequest a where
-    CreateBed :: String -> KisRequest BedId
-    CreatePatient :: Patient -> KisRequest PatientId
-    GetPatient :: PatientId -> KisRequest (Maybe Patient)
-    GetPatients :: KisRequest [Entity Patient]
-    PlacePatient :: PatientId -> BedId -> KisRequest (Maybe PatientBedId)
+type KisRequest a = Either (KisWriteRequest a) (KisReadRequest a)
 
-deriving instance Show (KisRequest a)
+data KisWriteRequest a where
+    CreateBed :: String -> KisWriteRequest BedId
+    CreatePatient :: Patient -> KisWriteRequest PatientId
+    PlacePatient :: PatientId -> BedId -> KisWriteRequest (Maybe PatientBedId)
+
+deriving instance Show (KisWriteRequest a)
+
+data KisReadRequest a where
+    GetPatient :: PatientId -> KisReadRequest (Maybe Patient)
+    GetPatients :: KisReadRequest [Entity Patient]
+
+deriving instance Show (KisReadRequest a)
 
 data Kis m =
     Kis
@@ -47,6 +60,21 @@ data KisException =
     deriving (Show, Eq)
 
 instance Exception KisException
+
+createPatient :: Patient -> KisRequest PatientId
+createPatient pat = Left (CreatePatient pat)
+
+createBed :: String -> KisRequest BedId
+createBed name = Left (CreateBed name)
+
+placePatient :: PatientId -> BedId -> KisRequest (Maybe PatientBedId)
+placePatient patId bedId = Left (PlacePatient patId bedId)
+
+getPatient :: PatientId -> KisRequest (Maybe Patient)
+getPatient patId = Right (GetPatient patId)
+
+getPatients :: KisRequest [Entity Patient]
+getPatients = Right GetPatients
 
 withKis :: Monad m => Kis m -> KisClient m a -> m a
 withKis kis action = runReaderT action kis

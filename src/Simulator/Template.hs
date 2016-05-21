@@ -20,6 +20,6 @@ __template1__ = Template [ (SimulatorAction movePatient, TimeOffset 10) ]
 
 movePatient :: MonadIO m => (PatientId, BedId) -> KisClient m (PatientId, BedId)
 movePatient (patientId, _) =
-    do bedId <- req (CreateBed "someBed")
-       void $ req (PlacePatient patientId bedId)
+    do bedId <- req (createBed "someBed")
+       void $ req (placePatient patientId bedId)
        return (patientId, bedId)

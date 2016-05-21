@@ -1,9 +1,16 @@
 module Kis
-    ( KisRequest(..)
+    ( KisRequest
+    , KisWriteRequest(..)
+    , KisReadRequest(..)
     , KisConfig(..)
     , KisClient
     , Kis(..)
     , KisException(..)
+    , createPatient
+    , createBed
+    , placePatient
+    , getPatient
+    , getPatients
     , waitForKisTime
     , withSqliteKis
     , SqliteBackendType(..)

@@ -38,7 +38,7 @@ handleKisRequest :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m
     KisBackend e -> forall a. KisRequest a -> m a
 handleKisRequest backend req =
     runSql backend handleRequest
-    where handleRequest = runAction req
+    where handleRequest = runRequest req
 
 convertException :: (Exception e, MonadCatch m) => (e -> KisException) -> m a -> m a
 convertException exceptionMap = handle (throwM . exceptionMap)
@@ -54,13 +54,27 @@ sqlMigrate :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
        => KisBackend e -> m ()
 sqlMigrate backend = void $ runSql backend (runMigrationSilent migrateAll)
 
-runAction :: (MonadCatch m, MonadIO m)
-          => KisRequest a -> ReaderT SqlBackend m a
-runAction (CreateBed name) = S.insert (Bed name)
-runAction (CreatePatient patient) = S.insert patient
-runAction (GetPatient pid) = S.get pid
-runAction GetPatients = getPatients
-runAction (PlacePatient patId bedId) = S.insertUnique (PatientBed patId bedId)
+runRequest ::
+    (MonadCatch m, MonadIO m)
+    => KisRequest a
+    -> ReaderT SqlBackend m a
+runRequest (Right kisRequest) = runReadRequest kisRequest
+runRequest (Left kisRequest) = runWriteRequest kisRequest
 
-getPatients :: MonadIO m => ReaderT SqlBackend m [Entity Patient]
-getPatients = E.select $ E.from $ \p -> return p
+runWriteRequest ::
+    (MonadCatch m, MonadIO m)
+    => KisWriteRequest a
+    -> ReaderT SqlBackend m a
+runWriteRequest (CreateBed name) = S.insert (Bed name)
+runWriteRequest (CreatePatient patient) = S.insert patient
+runWriteRequest (PlacePatient patId bedId) = S.insertUnique (PatientBed patId bedId)
+
+runReadRequest ::
+    (MonadCatch m, MonadIO m)
+    => KisReadRequest a
+    -> ReaderT SqlBackend m a
+runReadRequest (GetPatient pid) = S.get pid
+runReadRequest GetPatients = getPatientsSql
+
+getPatientsSql :: MonadIO m => ReaderT SqlBackend m [Entity Patient]
+getPatientsSql = E.select $ E.from $ \p -> return p

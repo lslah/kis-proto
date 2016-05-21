@@ -39,6 +39,7 @@ library
                      , Kis
                      , Kis.Kis
                      , Kis.Model
+                     , Kis.ReadOnly
                      , Kis.SqlBackend
                      , Kis.SqliteBackend
                      , Kis.Time

@@ -16,8 +16,8 @@ import Simulator.Template
 
 runSimulator :: MonadIO m => Template m (PatientId, BedId) -> KisClient m ()
 runSimulator template =
-  do patientId <- req (CreatePatient (Patient "Simon"))
-     bedId <- req (CreateBed "1a")
+  do patientId <- req (createPatient (Patient "Simon"))
+     bedId <- req (createBed "1a")
      loop template (patientId, bedId)
        where
          loop template' templateInfo =
