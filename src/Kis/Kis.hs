@@ -4,8 +4,7 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 
 module Kis.Kis
-    ( withKis
-    , KisRequest(..)
+    ( KisRequest(..)
     , KisClient
     , KisConfig(..)
     , Kis(..)
@@ -47,9 +46,6 @@ data KisException =
     deriving (Show, Eq)
 
 instance Exception KisException
-
-withKis :: Monad m => Kis m -> KisClient m a -> m a
-withKis kis action = runReaderT action kis
 
 _logShow :: (MonadLogger m, Show a) => Text -> a -> m ()
 _logShow tag x = logInfoN (tag <> ": " <> (pack . show $ x))

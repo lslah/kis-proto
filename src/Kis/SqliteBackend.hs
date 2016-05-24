@@ -5,6 +5,8 @@ module Kis.SqliteBackend
     , sqliteBackend
     , SqliteBackendType(..)
     , runClient
+    , runSingleClientSqlite
+    , buildKisWithBackend
     )
 where
 
@@ -23,9 +25,21 @@ import qualified Data.Text as T
 
 data SqliteBackendType = InMemory | PoolBackendType T.Text Int
 
-withSqliteKis :: SqliteBackendType -> KisConfig -> KisClient IO a -> IO a
-withSqliteKis backendType config client =
-    sqliteBackend backendType >>= \backend -> runClient backend config client
+withSqliteKis ::
+    SqliteBackendType
+    -> KisConfig
+    -> (Kis IO -> IO a)
+    -> IO a
+withSqliteKis backendType config f =
+    sqliteBackend backendType >>= \backend -> f $ buildKisWithBackend backend config
+
+runSingleClientSqlite ::
+    SqliteBackendType
+    -> KisConfig
+    -> KisClient IO a
+    -> IO a
+runSingleClientSqlite backendType config client =
+    withSqliteKis backendType config $ \kis -> runClient kis client
 
 sqliteBackend :: (MonadCatch m, MonadBaseControl IO m, MonadIO m) => SqliteBackendType -> m (KisBackend SqliteException)
 sqliteBackend backendType = do

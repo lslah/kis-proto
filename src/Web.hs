@@ -28,7 +28,8 @@ web runKisClient =
 inMemoryWeb :: IO Middleware
 inMemoryWeb = do
     backend <- sqliteBackend InMemory
-    web (runClient backend (KisConfig realTimeClock))
+    let kis = buildKisWithBackend backend (KisConfig realTimeClock)
+    web (runClient kis)
 
 inMemoryApplication :: IO Application
 inMemoryApplication = spockAsApp inMemoryWeb

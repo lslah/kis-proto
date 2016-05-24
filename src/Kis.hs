@@ -7,8 +7,9 @@ module Kis
     , waitForKisTime
     , withSqliteKis
     , SqliteBackendType(..)
-    , withKis
     , req
+    , runClient
+    , runSingleClientSqlite
     , module Kis.Model
     )
 where
