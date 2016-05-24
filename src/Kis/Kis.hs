@@ -9,6 +9,9 @@ module Kis.Kis
     , KisConfig(..)
     , Kis(..)
     , KisException(..)
+    , RequestType(..)
+    , requestType
+    , toNotif
     )
 where
 
@@ -20,6 +23,7 @@ import Data.Text
 import GHC.Exception
 
 import Kis.Model
+import Kis.Notifications
 import Kis.Time
 
 data KisRequest a where
@@ -31,11 +35,32 @@ data KisRequest a where
 
 deriving instance Show (KisRequest a)
 
+data RequestType = ReadRequest | WriteRequest
+
+requestType :: KisRequest a -> RequestType
+requestType (CreateBed _) = WriteRequest
+requestType (CreatePatient _) = WriteRequest
+requestType (PlacePatient _ _) = WriteRequest
+requestType (GetPatient _) = ReadRequest
+requestType GetPatients = ReadRequest
+
+toNotif :: KisRequest a -> Notification
+toNotif (CreateBed _) = Notification NewBed
+toNotif (CreatePatient _) = Notification NewPatient
+toNotif (PlacePatient _ _) = Notification PatientMoved
+toNotif _ = Notification NoNotif
+
 data Kis m =
     Kis
     { k_requestHandler :: forall a. KisRequest a -> m a
+      -- ^ Interface with the data
     , k_clock :: Clock
+      -- ^ Interface with clock functions
+    , k_getNotifications :: m [Notification]
+    , k_waitForNewNotification :: m ()
+      -- ^ Interface to the notifications system
     }
+
 type KisClient m = ReaderT (Kis m) m
 
 data KisConfig = KisConfig Clock

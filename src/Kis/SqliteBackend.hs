@@ -31,7 +31,9 @@ withSqliteKis ::
     -> (Kis IO -> IO a)
     -> IO a
 withSqliteKis backendType config f =
-    sqliteBackend backendType >>= \backend -> f $ buildKisWithBackend backend config
+    do backend <- sqliteBackend backendType
+       kis <- buildKisWithBackend backend config
+       f kis
 
 runSingleClientSqlite ::
     SqliteBackendType

@@ -8,6 +8,8 @@
 module Kis.Model
 where
 
+import Kis.Notifications
+
 import Database.Persist.TH
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
@@ -23,6 +25,10 @@ PatientBed
     bedId BedId
     UniquePatientId patientId
     UniqueBedId bedId
+    deriving Show Eq
+
+Notification
+    type NotificationType
     deriving Show Eq
 |]
 
