@@ -83,6 +83,8 @@ test-suite kis-proto-test
                      , persistent
                      , persistent-sqlite
                      , QuickCheck
+                     , temporary
+                     , text
                      , time
                      , transformers
                      , wai-extra
