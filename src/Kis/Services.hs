@@ -6,6 +6,7 @@ module Kis.Services
 where
 
 import Control.Monad
+import Database.Persist
 
 import Kis.Kis
 import Kis.Model
@@ -28,9 +29,10 @@ notificationsThread kis handlers =
         do waitForNextNotif
            notifications <- getNotifications
            forM notifications $
-                \n -> forM handlers $
-                    -- | When ReadOnly is implemented, this should be: runReadOnlyClient
-                    \h -> runClient kis $ h n
+                \(Entity notifId notif) ->
+                    do void $ forM handlers $ \h -> runClient kis $ h notif
+                       deleteNotification notifId
         where
           waitForNextNotif = k_waitForNewNotification kis
           getNotifications = k_getNotifications kis
+          deleteNotification = k_deleteNotification kis

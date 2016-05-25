@@ -15,7 +15,8 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  build-depends:       base >= 4.7 && < 5
+  build-depends:       async
+                     , base >= 4.7 && < 5
                      , containers
                      , either
                      , monad-control
@@ -74,12 +75,14 @@ test-suite kis-proto-test
   main-is:             Spec.hs
   build-depends:       base
                      , aeson
+                     , async
                      , either
                      , extra
                      , hspec
                      , hspec-wai
                      , kis-proto
                      , mtl
+                     , MissingH
                      , persistent
                      , persistent-sqlite
                      , QuickCheck

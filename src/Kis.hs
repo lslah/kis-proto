@@ -25,15 +25,15 @@ import Kis.Services
 import Kis.Time
 import Kis.SqliteBackend
 
-import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Monad.RWS
 import qualified Data.Text as T
 
 runKis :: [Service IO] -> T.Text -> IO ()
 runKis services dbFile =
     withSqliteKis (PoolBackendType dbFile 10) (KisConfig realTimeClock) $ \kis ->
-        do void $ forkIO $ notificationsThread kis notificationHandlers
-           forM_ services $ \s -> void $ forkIO (runClient kis (s_serviceMain s))
+        do link =<< async (notificationsThread kis notificationHandlers)
+           void $ forM_ services $ \s -> wait =<< async (runClient kis (s_serviceMain s))
     where
       notificationHandlers = map s_notificationHandler services
 

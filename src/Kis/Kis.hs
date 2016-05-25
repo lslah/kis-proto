@@ -56,8 +56,9 @@ data Kis m =
       -- ^ Interface with the data
     , k_clock :: Clock
       -- ^ Interface with clock functions
-    , k_getNotifications :: m [Notification]
+    , k_getNotifications :: m [Entity Notification]
     , k_waitForNewNotification :: m ()
+    , k_deleteNotification :: NotificationId -> m ()
       -- ^ Interface to the notifications system
     }
 

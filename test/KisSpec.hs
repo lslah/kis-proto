@@ -8,6 +8,7 @@ where
 import Kis
 
 import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Monad
 import Control.Monad.Except
 import Database.Persist.Sqlite
@@ -60,12 +61,17 @@ spec = do
           it "can run two clients in parallel" $
              withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
                  withSqliteKis (PoolBackendType (T.pack fp) 10) kisConfig $ \kis ->
-                     do void $ forkIO $ runClient kis $
-                             do void $ req (CreatePatient $ Patient "Simon")
-                        void $ forkIO $ runClient kis $
-                             do lift $ k_waitForNewNotification kis
-                                pats <- req GetPatients
-                                liftIO $ map (\(Entity _ pat) -> pat) pats `shouldBe` [Patient "Simon"]
+                     do firstClientDone <- newEmptyMVar
+                        let client1 =
+                                do void $ req (CreatePatient $ Patient "Simon")
+                                   liftIO $ putMVar firstClientDone ()
+                            client2 =
+                                do void $ req (CreatePatient $ Patient "Thomas")
+                                   liftIO $ takeMVar firstClientDone
+                                   pats <- req GetPatients
+                                   liftIO $ map (\(Entity _ pat) -> pat) pats `shouldBe` [Patient "Simon"]
+                        link =<< async (runClient kis client1)
+                        link =<< async (runClient kis client2)
 
 customKisFunction :: KisRequest a -> IO a
 customKisFunction (CreatePatient _) = return (toSqlKey 1)
@@ -73,7 +79,7 @@ customKisFunction _ = undefined
 
 customKis :: Kis IO
 customKis =
-    Kis customKisFunction realTimeClock (return []) (return ())
+    Kis customKisFunction realTimeClock (return []) (return ()) (\_ -> return ())
 
 kisConfig :: KisConfig
 kisConfig = KisConfig realTimeClock

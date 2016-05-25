@@ -12,6 +12,7 @@ module Kis.SqlBackend
 where
 
 import Control.Concurrent
+import Control.Exception hiding (handle)
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Trans.Control
@@ -39,10 +40,14 @@ buildKisWithBackend ::
 buildKisWithBackend backend (KisConfig clock) =
     do wakeUp <- newEmptyMVar
        return $ Kis { k_requestHandler =
-                          \req -> notify wakeUp req >> handleKisRequest backend req
+                          \req ->
+                              do res <- handleKisRequest backend req
+                                 notify wakeUp req
+                                 return res
                     , k_clock = clock
                     , k_getNotifications = getBackendNotifs backend
                     , k_waitForNewNotification = liftIO $ takeMVar wakeUp
+                    , k_deleteNotification = deleteNotificationInBackend backend
                     }
     where
       notify wakeUp request =
@@ -57,11 +62,15 @@ handleKisRequest :: (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m
     KisBackend e -> forall a. KisRequest a -> m a
 handleKisRequest backend req =
     runSql backend handleRequest
-    where handleRequest = writeNotif req >> runAction req
-          writeNotif request =
-              case requestType request of
-                ReadRequest -> return ()
-                WriteRequest -> void $ S.insert (toNotif request)
+    where
+      handleRequest =
+          do res <- runAction req
+             writeNotif req
+             return res
+      writeNotif request =
+          case requestType request of
+            ReadRequest -> return ()
+            WriteRequest -> void $ S.insert (toNotif request)
 
 convertException :: (Exception e, MonadCatch m) => (e -> KisException) -> m a -> m a
 convertException exceptionMap = handle (throwM . exceptionMap)
@@ -91,11 +100,15 @@ getPatients = E.select $ E.from $ \p -> return p
 getBackendNotifs ::
     (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
     => KisBackend e
-    -> m [Notification]
-getBackendNotifs backend =
-    do notifEntityList <- runSql backend getNotifQuery
-       return $ getValues notifEntityList
+    -> m [Entity Notification]
+getBackendNotifs backend = runSql backend getNotifQuery
     where
       getNotifQuery :: MonadIO m => ReaderT SqlBackend m [Entity Notification]
       getNotifQuery = E.select $ E.from $ \p -> return p
-      getValues = map (\(Entity _ notification) -> notification)
+
+deleteNotificationInBackend ::
+    (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
+    => KisBackend e
+    -> NotificationId
+    -> m ()
+deleteNotificationInBackend backend notifId = runSql backend (delete notifId)
