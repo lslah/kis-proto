@@ -34,7 +34,8 @@ runKis :: [Service IO] -> T.Text -> IO ()
 runKis services dbFile =
     withSqliteKis (PoolBackendType dbFile 10) (KisConfig realTimeClock) $ \kis ->
         do link =<< async (notificationsThread kis notificationHandlers)
-           void $ forM_ services $ \s -> wait =<< async (runClient kis (s_serviceMain s))
+           allAsyncs <- forM services $ \s -> async (runClient kis (s_serviceMain s))
+           mapM_ wait allAsyncs
     where
       notificationHandlers = map s_notificationHandler services
 
