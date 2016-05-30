@@ -45,9 +45,12 @@ buildKisWithBackend backend (KisConfig clock) =
                                  notify wakeUp req
                                  return res
                     , k_clock = clock
-                    , k_getNotifications = getBackendNotifs backend
-                    , k_waitForNewNotification = liftIO $ takeMVar wakeUp
-                    , k_deleteNotification = deleteNotificationInBackend backend
+                    , k_notificationSystem =
+                        NotificationSystem
+                        { ns_getNotifications = getBackendNotifs backend
+                        , ns_waitForNewNotification = liftIO $ takeMVar wakeUp
+                        , ns_deleteNotification = deleteNotificationInBackend backend
+                        }
                     }
     where
       notify wakeUp request =

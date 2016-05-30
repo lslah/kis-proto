@@ -79,8 +79,10 @@ customKisFunction _ = undefined
 
 customKis :: Kis IO
 customKis =
-    Kis customKisFunction realTimeClock (return []) (return ()) (\_ -> return ())
+    Kis customKisFunction realTimeClock mockNotificationSystem
 
 kisConfig :: KisConfig
 kisConfig = KisConfig realTimeClock
 
+mockNotificationSystem :: NotificationSystem IO
+mockNotificationSystem = NotificationSystem (return []) (return ()) (\_ -> return ())

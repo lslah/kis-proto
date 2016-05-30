@@ -9,6 +9,7 @@ module Kis.Kis
     , KisConfig(..)
     , Kis(..)
     , KisException(..)
+    , NotificationSystem(..)
     , RequestType(..)
     , requestType
     , toNotif
@@ -56,10 +57,14 @@ data Kis m =
       -- ^ Interface with the data
     , k_clock :: Clock
       -- ^ Interface with clock functions
-    , k_getNotifications :: m [Entity Notification]
-    , k_waitForNewNotification :: m ()
-    , k_deleteNotification :: NotificationId -> m ()
-      -- ^ Interface to the notifications system
+    , k_notificationSystem :: NotificationSystem m
+    }
+
+data NotificationSystem m =
+    NotificationSystem
+    { ns_getNotifications :: m [Entity Notification]
+    , ns_waitForNewNotification :: m ()
+    , ns_deleteNotification :: NotificationId -> m ()
     }
 
 type KisClient m = ReaderT (Kis m) m

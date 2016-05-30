@@ -33,6 +33,7 @@ notificationsThread kis handlers =
                     do void $ forM handlers $ \h -> runClient kis $ h notif
                        deleteNotification notifId
         where
-          waitForNextNotif = k_waitForNewNotification kis
-          getNotifications = k_getNotifications kis
-          deleteNotification = k_deleteNotification kis
+          waitForNextNotif = ns_waitForNewNotification notificationSystem
+          getNotifications = ns_getNotifications notificationSystem
+          deleteNotification = ns_deleteNotification notificationSystem
+          notificationSystem = k_notificationSystem kis

@@ -24,7 +24,8 @@ spec = do
                     pat <- req (CreatePatient $ Patient "Simon")
                     _ <- req (PlacePatient pat bed)
                     return ()
-                notifications <- fmap (map (\(Entity _ notif) -> notif)) (k_getNotifications kis)
+                let ns = k_notificationSystem kis
+                notifications <- fmap (map (\(Entity _ notif) -> notif)) (ns_getNotifications ns)
                 notifications `shouldBe` (map Notification [NewBed, NewPatient, PatientMoved])
     describe "runKis" $ do
         it "can be run with single service" $ do

@@ -5,6 +5,7 @@ module Kis
     , Kis(..)
     , KisException(..)
     , NotificationType(..)
+    , NotificationSystem(..)
     , Service(..)
     , SqliteBackendType(..)
     , realTimeClock
