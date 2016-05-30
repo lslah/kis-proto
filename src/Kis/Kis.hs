@@ -10,8 +10,6 @@ module Kis.Kis
     , Kis(..)
     , KisException(..)
     , NotificationSystem(..)
-    , RequestType(..)
-    , requestType
     , toNotif
     )
 where
@@ -36,20 +34,11 @@ data KisRequest a where
 
 deriving instance Show (KisRequest a)
 
-data RequestType = ReadRequest | WriteRequest
-
-requestType :: KisRequest a -> RequestType
-requestType (CreateBed _) = WriteRequest
-requestType (CreatePatient _) = WriteRequest
-requestType (PlacePatient _ _) = WriteRequest
-requestType (GetPatient _) = ReadRequest
-requestType GetPatients = ReadRequest
-
-toNotif :: KisRequest a -> Notification
-toNotif (CreateBed _) = Notification NewBed
-toNotif (CreatePatient _) = Notification NewPatient
-toNotif (PlacePatient _ _) = Notification PatientMoved
-toNotif _ = Notification NoNotif
+toNotif :: KisRequest a -> Maybe Notification
+toNotif (CreateBed _) = Just $ Notification NewBed
+toNotif (CreatePatient _) = Just $ Notification NewPatient
+toNotif (PlacePatient _ _) = Just $ Notification PatientMoved
+toNotif _ = Nothing
 
 data Kis m =
     Kis

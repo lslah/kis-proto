@@ -15,6 +15,7 @@ import Control.Concurrent
 import Control.Exception hiding (handle)
 import Control.Monad.Catch
 import Control.Monad.Except
+import Control.Monad.Extra (whenJust)
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader
 import Database.Persist.Sql as S
@@ -54,9 +55,7 @@ buildKisWithBackend backend (KisConfig clock) =
                     }
     where
       notify wakeUp request =
-          case requestType request of
-            ReadRequest -> return ()
-            WriteRequest -> void $ liftIO $ tryPutMVar wakeUp ()
+            whenJust (toNotif request) (\_ -> void $ liftIO $ tryPutMVar wakeUp ())
 
 runClient :: Kis m -> KisClient m a -> m a
 runClient kis client = runReaderT client kis
@@ -71,9 +70,7 @@ handleKisRequest backend req =
              writeNotif req
              return res
       writeNotif request =
-          case requestType request of
-            ReadRequest -> return ()
-            WriteRequest -> void $ S.insert (toNotif request)
+          whenJust (toNotif request) (void . S.insert)
 
 convertException :: (Exception e, MonadCatch m) => (e -> KisException) -> m a -> m a
 convertException exceptionMap = handle (throwM . exceptionMap)
