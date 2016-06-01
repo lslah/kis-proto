@@ -40,22 +40,40 @@ buildKisWithBackend ::
     -> IO (Kis m)
 buildKisWithBackend backend (KisConfig clock) =
     do wakeUp <- newEmptyMVar
+       lockDB <- newMVar ()
        return $ Kis { k_requestHandler =
                           \req ->
-                              do res <- handleKisRequest backend req
-                                 notify wakeUp req
-                                 return res
+                              withLock lockDB $
+                                  do res <- handleKisRequest backend req
+                                     notify wakeUp req
+                                     return res
                     , k_clock = clock
                     , k_notificationSystem =
                         NotificationSystem
-                        { ns_getNotifications = getBackendNotifs backend
-                        , ns_waitForNewNotification = liftIO $ takeMVar wakeUp
-                        , ns_deleteNotification = deleteNotificationInBackend backend
+                        { ns_getNotifications =
+                              withLock lockDB $ getBackendNotifs backend
+                        , ns_waitForNewNotification =
+                              liftIO $ takeMVar wakeUp
+                        , ns_deleteNotification =
+                              \notifId ->
+                                  withLock lockDB $
+                                      deleteNotificationInBackend backend notifId
                         }
                     }
     where
       notify wakeUp request =
             whenJust (toNotif request) (\_ -> void $ liftIO $ tryPutMVar wakeUp ())
+      withLock ::
+          (MonadCatch m, MonadBaseControl IO m, MonadIO m)
+          => MVar ()
+          -> m a
+          -> m a
+      withLock lock f =
+          do liftIO (takeMVar lock)
+             res <- f
+             liftIO (putMVar lock ())
+             return res
+
 
 runClient :: Kis m -> KisClient m a -> m a
 runClient kis client = runReaderT client kis
