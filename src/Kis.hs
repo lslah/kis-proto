@@ -26,6 +26,7 @@ import Kis.Services
 import Kis.Time
 import Kis.SqliteBackend
 
+import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Monad.RWS
 import qualified Data.Text as T
@@ -33,9 +34,12 @@ import qualified Data.Text as T
 runKis :: [Service IO] -> T.Text -> IO ()
 runKis services dbFile =
     withSqliteKis (PoolBackendType dbFile 10) (KisConfig realTimeClock) $ \kis ->
-        do link =<< async (notificationsThread kis notificationHandlers)
+        do stopSignal <- newEmptyMVar
+           notif <- async (notificationsThread kis notificationHandlers stopSignal)
            allAsyncs <- forM services $ \s -> async (runClient kis (s_serviceMain s))
            mapM_ wait allAsyncs
+           putMVar stopSignal ()
+           wait notif
     where
       notificationHandlers = map s_notificationHandler services
 
