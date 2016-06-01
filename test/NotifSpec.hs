@@ -38,7 +38,7 @@ spec = do
           withTempFile "/tmp/" "tmpKisDB1" $ \fp _ ->
               runKis [service] (T.pack fp)
           notifs <- takeMVar collectedNotifs
-          notifs `shouldBe` (map Notification [NewBed, NewPatient, PatientMoved])
+          notifs `shouldBe` (map Notification [PatientMoved, NewPatient, NewBed])
     describe "Notification handlers" $
        it "are notified of Notifications" $ do
              mvar1 <- newMVar []
