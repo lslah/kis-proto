@@ -41,7 +41,9 @@ notificationsThread ::
     -- ^ stop signal
     -> IO ()
 notificationsThread getNotifications deleteNotif handlers newNotifs stopSignal =
-    loop
+    case twoNotifHandlersWithEqualSignature handlers of
+      True -> error "two notifhandlers with the same signature were added"
+      False -> loop
     where
       loop =
           do shouldStop <- tryReadMVar stopSignal
@@ -70,4 +72,9 @@ notificationsThread getNotifications deleteNotif handlers newNotifs stopSignal =
              loop
       notifProcessFunktionMap =
           Map.fromList $ map (\nh -> (nh_signature nh, nh_processNotif nh)) handlers
+
+      twoNotifHandlersWithEqualSignature [] = False
+      twoNotifHandlersWithEqualSignature (nh:nhs) =
+          any ((==) (nh_signature nh)) (map nh_signature nhs)
+                  || (twoNotifHandlersWithEqualSignature nhs)
 

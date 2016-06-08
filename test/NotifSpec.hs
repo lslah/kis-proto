@@ -97,6 +97,13 @@ spec = do
                  runKis [client] [nh] (T.pack fp))
              `shouldThrow` (== ErrorCall "Save-Notification action spawned a write request")
 
+       it "cannot add two notifHandlers with equal signature" $
+          let nh1 = NotificationHandler saveRequest (\_ -> return ()) "nh1"
+          in (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
+                 runKis [] [nh1, nh1] (T.pack fp))
+             `shouldThrow` (== ErrorCall "two notifhandlers with the same signature were added")
+
+
 simpleNotifHandler :: MVar [RequestType] -> T.Text -> NotificationHandler
 simpleNotifHandler notifList sig =
     NotificationHandler
