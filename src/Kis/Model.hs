@@ -8,9 +8,9 @@
 module Kis.Model
 where
 
-import Kis.Notifications
-
 import Database.Persist.TH
+import qualified Data.ByteString as BS
+import qualified Data.Text as T
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 Patient json
@@ -28,7 +28,8 @@ PatientBed
     deriving Show Eq
 
 Notification
-    type NotificationType
+    payload BS.ByteString
+    handlerSig T.Text
     deriving Show Eq
 |]
 

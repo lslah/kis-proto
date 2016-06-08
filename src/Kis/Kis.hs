@@ -9,8 +9,7 @@ module Kis.Kis
     , KisConfig(..)
     , Kis(..)
     , KisException(..)
-    , NotificationSystem(..)
-    , toNotif
+    , isWriteAction
     )
 where
 
@@ -22,7 +21,6 @@ import Data.Text
 import GHC.Exception
 
 import Kis.Model
-import Kis.Notifications
 import Kis.Time
 
 data KisRequest a where
@@ -34,11 +32,11 @@ data KisRequest a where
 
 deriving instance Show (KisRequest a)
 
-toNotif :: KisRequest a -> Maybe Notification
-toNotif (CreateBed _) = Just $ Notification NewBed
-toNotif (CreatePatient _) = Just $ Notification NewPatient
-toNotif (PlacePatient _ _) = Just $ Notification PatientMoved
-toNotif _ = Nothing
+isWriteAction :: KisRequest a -> Bool
+isWriteAction (CreateBed _) = True
+isWriteAction (CreatePatient _) = True
+isWriteAction (PlacePatient _ _) = True
+isWriteAction _ = False
 
 data Kis m =
     Kis
@@ -46,14 +44,6 @@ data Kis m =
       -- ^ Interface with the data
     , k_clock :: Clock
       -- ^ Interface with clock functions
-    , k_notificationSystem :: NotificationSystem m
-    }
-
-data NotificationSystem m =
-    NotificationSystem
-    { ns_getNotifications :: m [Entity Notification]
-    , ns_waitForNewNotification :: m ()
-    , ns_deleteNotification :: NotificationId -> m ()
     }
 
 type KisClient m = ReaderT (Kis m) m

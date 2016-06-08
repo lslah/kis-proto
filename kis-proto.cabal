@@ -17,6 +17,7 @@ library
   hs-source-dirs:      src
   build-depends:       async
                      , base >= 4.7 && < 5
+                     , bytestring
                      , containers
                      , either
                      , monad-control
@@ -41,7 +42,6 @@ library
                      , Kis.Kis
                      , Kis.Model
                      , Kis.Notifications
-                     , Kis.Services
                      , Kis.SqlBackend
                      , Kis.SqliteBackend
                      , Kis.Time
@@ -76,6 +76,7 @@ test-suite kis-proto-test
   build-depends:       base
                      , aeson
                      , async
+                     , bytestring
                      , either
                      , extra
                      , hspec

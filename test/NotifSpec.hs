@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE OverloadedStrings #-}
 module NotifSpec
     ( spec
     )
@@ -6,28 +8,19 @@ where
 import Kis
 
 import Control.Concurrent
-import Control.Exception.Base
 import Control.Monad
-import Control.Monad.IO.Class
-import Database.Persist
-import Data.List.Utils (countElem)
+import Control.Monad.Trans.Class
 import System.IO.Temp
 import Test.Hspec
+import qualified Data.Aeson as J
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text as T
+
+type RequestType = T.Text
 
 spec :: Spec
 spec = do
-    describe "Notifications" $
-        it "are correctly written to DB" $ do
-            withSqliteKis InMemory kisConfig $ \kis -> do
-                runClient kis $ do
-                    bed <- req (CreateBed "xy")
-                    pat <- req (CreatePatient $ Patient "Simon")
-                    _ <- req (PlacePatient pat bed)
-                    return ()
-                let ns = k_notificationSystem kis
-                notifications <- fmap (map (\(Entity _ notif) -> notif)) (ns_getNotifications ns)
-                notifications `shouldBe` (map Notification [NewBed, NewPatient, PatientMoved])
     describe "runKis" $ do
         it "can be run with single service" $ do
           collectedNotifs <- newMVar []
@@ -35,51 +28,88 @@ spec = do
                   do bed <- req (CreateBed "xy")
                      pat <- req (CreatePatient $ Patient "Simon")
                      void $ req (PlacePatient pat bed)
-              service = Service client (notifHandler collectedNotifs)
           withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
-              runKis [service] (T.pack fp)
+              runKis [client] [simpleNotifHandler collectedNotifs "notif1"] (T.pack fp)
           notifs <- takeMVar collectedNotifs
-          notifs `shouldBe` (map Notification [PatientMoved, NewPatient, NewBed])
+          tail notifs `shouldBe`
+                   ([ T.pack (show (CreatePatient (Patient "Simon")))
+                    , T.pack (show (CreateBed "xy"))
+                    ]
+                   )
     describe "Notification handlers" $ do
-       it "are notified of Notifications" $ do
-             mvar1 <- newMVar []
-             mvar2 <- newMVar []
-             let client1 =
-                     void $ req (CreatePatient $ Patient "Simon")
-                 client2 =
-                     do void $ req (CreateBed "xy")
-                        void $ req (CreatePatient $ Patient "Thomas")
-                        void $ req GetPatients
-                 services = [ Service client1 (notifHandler mvar1)
-                            , Service client2 (notifHandler mvar2)
-                            ]
-                 prop l = countElem (Notification NewPatient) l == 2
-                          && countElem (Notification NewBed) l == 1
-                          && length l == 3
-             withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
-                runKis services (T.pack fp)
-             notifList1 <- takeMVar mvar1
-             notifList2 <- takeMVar mvar2
-             notifList1 `shouldSatisfy` prop
-             notifList2 `shouldSatisfy` prop
+       it "are notified of Notifications" $
+           do mvar1 <- newMVar []
+              mvar2 <- newMVar []
+              let client1 = void $ req (CreatePatient $ Patient "Simon")
+                  client2 =
+                      do void $ req (CreateBed "xy")
+                         void $ req (CreatePatient $ Patient "Thomas")
+                         void $ req GetPatients
+                  nh1 = simpleNotifHandler mvar1 "notifH1"
+                  nh2 = simpleNotifHandler mvar2 "notifH2"
+                  allHandlers = [nh1, nh2]
+                  allClients = [client1, client2]
+                  prop l =
+                      T.pack (show (CreatePatient $ Patient "Simon")) `elem` l
+                      &&  T.pack (show (CreatePatient $ Patient "Thomas")) `elem` l
+                      &&  T.pack (show (CreateBed "xy")) `elem` l
+                      && length l == 3
+              withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
+                  runKis allClients allHandlers (T.pack fp)
+              notifList1 <- takeMVar mvar1
+              notifList2 <- takeMVar mvar2
+              notifList1 `shouldSatisfy` prop
+              notifList2 `shouldSatisfy` prop
        it "does not block if nothing happens in service" $
            (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
-               runKis [Service (return ()) (\_ -> return ())] (T.pack fp))
-       -- ^ The reason for this test is that the newNotif MVar was blocked indefinitely
-       -- and the notifications thread didnt wakeup on the stop signal.
-       it "exceptions in notification handler is catched" $
-           (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
-               runKis [Service (void $ req (CreateBed "")) notifHandlerWithException] (T.pack fp))
-           `shouldThrow` (== Overflow)
+               runKis [] [] (T.pack fp))
+       -- ^ The reason for this test was a bug where the notifications thread
+       -- was blocked and didnt wakeup on the stop signal.
+       it "can use the Kis interface to access DB" $
+          do resMvar <- newEmptyMVar
+             let client =
+                     do pat <- req (CreatePatient $ Patient "Simon")
+                        bed <- req (CreateBed "xy")
+                        void $ req (PlacePatient pat bed)
+                 saveFunction :: Monad m => T.Text -> (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
+                 saveFunction sig (request, _) writeNotif =
+                     case request of
+                       PlacePatient patId _ ->
+                           do patient <- req (GetPatient patId)
+                              lift $ writeNotif (sig, BSL.toStrict (J.encode patient))
+                       _ -> return ()
+                 processFunction bs =
+                     putMVar resMvar res
+                         where Just res = J.decode (BSL.fromStrict bs)
+                 nh = NotificationHandler saveFunction processFunction "nh1"
+             withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
+                 runKis [client] [nh] (T.pack fp)
+             result <- takeMVar resMvar
+             result `shouldBe` (Patient "Simon")
 
 
-kisConfig :: KisConfig
-kisConfig = KisConfig realTimeClock
+_kisConfig :: KisConfig
+_kisConfig = KisConfig realTimeClock
 
-notifHandler :: MonadIO m => MVar [Notification] -> Notification -> KisClient m ()
-notifHandler notifList newNotif =
-    do oldList <- liftIO $ takeMVar notifList
-       liftIO $ putMVar notifList (newNotif:oldList)
+simpleNotifHandler :: MVar [RequestType] -> T.Text -> NotificationHandler
+simpleNotifHandler notifList sig =
+    NotificationHandler
+    { nh_saveNotif = saveRequest
+    , nh_processNotif = processNotification notifList
+    , nh_signature = sig
+    }
 
-notifHandlerWithException :: MonadIO m => Notification -> KisClient m ()
-notifHandlerWithException _ = throw Overflow
+saveRequest ::
+    Monad m
+ => T.Text
+ -> (KisRequest a, a)
+ -> WriteNotifFunc m
+ -> KisClient m ()
+saveRequest handlerSig (request, _) writeNotif =
+     lift $ writeNotif (handlerSig, BSL.toStrict (J.encode (T.pack (show request))))
+
+processNotification :: MVar [RequestType] -> BS.ByteString -> IO ()
+processNotification notifList payload =
+    do oldList <- takeMVar notifList
+       let Just reqType = (J.decode (BSL.fromStrict payload))
+       putMVar notifList (reqType:oldList)

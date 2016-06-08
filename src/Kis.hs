@@ -4,10 +4,9 @@ module Kis
     , KisClient
     , Kis(..)
     , KisException(..)
-    , NotificationType(..)
-    , NotificationSystem(..)
-    , Service(..)
+    , NotificationHandler(..)
     , SqliteBackendType(..)
+    , WriteNotifFunc
     , realTimeClock
     , req
     , runClient
@@ -22,26 +21,21 @@ where
 import Kis.Kis
 import Kis.Model
 import Kis.Notifications
-import Kis.Services
 import Kis.Time
 import Kis.SqliteBackend
 
-import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Monad.RWS
 import qualified Data.Text as T
 
-runKis :: [Service IO] -> T.Text -> IO ()
-runKis services dbFile =
-    withSqliteKis (PoolBackendType dbFile 10) (KisConfig realTimeClock) $ \kis ->
-        do stopSignal <- newEmptyMVar
-           notif <- async (notificationsThread kis notificationHandlers stopSignal)
-           allAsyncs <- forM services $ \s -> async (runClient kis (s_serviceMain s))
-           mapM_ wait allAsyncs
-           putMVar stopSignal ()
-           wait notif
+runKis :: [KisClient IO a] -> [NotificationHandler] -> T.Text -> IO ()
+runKis clients notifHandlers dbFile =
+    withSqliteKisWithNotifs poolbackend kisConfig notifHandlers $ \kis ->
+        do allClients <- forM clients $ \client -> async (runClient kis client)
+           mapM_ wait allClients
     where
-      notificationHandlers = map s_notificationHandler services
+      poolbackend = PoolBackendType dbFile 10
+      kisConfig = KisConfig realTimeClock
 
 req :: Monad m => KisRequest a -> KisClient m a
 req action = do

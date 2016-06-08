@@ -7,6 +7,7 @@ module Web
     )
 where
 
+import Control.Concurrent
 import Control.Monad.RWS hiding (get)
 import Network.Wai.Middleware.Static
 import Network.Wai
@@ -33,7 +34,8 @@ web runKisClient =
 inMemoryWeb :: IO Middleware
 inMemoryWeb = do
     backend <- sqliteBackend InMemory
-    kis <- buildKisWithBackend backend (KisConfig realTimeClock)
+    noNotifThread <- newMVar ()
+    (kis, _) <- buildKisWithBackend backend (KisConfig realTimeClock) [] noNotifThread
     web (runClient kis)
 
 inMemoryApplication :: IO Application

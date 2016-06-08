@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts           #-}
 module Kis.SqliteBackend
     ( withSqliteKis
+    , withSqliteKisWithNotifs
     , sqliteBackend
     , SqliteBackendType(..)
     , runClient
@@ -10,9 +11,12 @@ module Kis.SqliteBackend
     )
 where
 
-import Kis.SqlBackend
 import Kis.Kis
+import Kis.Notifications
+import Kis.SqlBackend
 
+import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Trans.Control
@@ -25,6 +29,21 @@ import qualified Data.Text as T
 
 data SqliteBackendType = InMemory | PoolBackendType T.Text Int
 
+withSqliteKisWithNotifs ::
+    SqliteBackendType
+    -> KisConfig
+    -> [NotificationHandler]
+    -> (Kis IO -> IO a)
+    -> IO a
+withSqliteKisWithNotifs backendType config notifHandlers f =
+    do backend <- sqliteBackend backendType
+       stopNotifThread <- newEmptyMVar
+       (kis, notifThread) <- buildKisWithBackend backend config notifHandlers stopNotifThread
+       res <- f kis
+       putMVar stopNotifThread ()
+       wait notifThread
+       return res
+
 withSqliteKis ::
     SqliteBackendType
     -> KisConfig
@@ -32,7 +51,9 @@ withSqliteKis ::
     -> IO a
 withSqliteKis backendType config f =
     do backend <- sqliteBackend backendType
-       kis <- buildKisWithBackend backend config
+       dontRunNotifThread <- newMVar () -- Because the MVar is full, the notifThread stops immediately
+                                        -- TODO Abstract over the MVars
+       (kis, _) <- buildKisWithBackend backend config [] dontRunNotifThread
        f kis
 
 runSingleClientSqlite ::
