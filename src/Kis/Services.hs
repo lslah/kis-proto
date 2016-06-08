@@ -6,6 +6,7 @@ module Kis.Services
 where
 
 import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Monad
 import Data.Maybe (isJust)
 import Database.Persist
@@ -39,7 +40,9 @@ notificationsThread kis handlers stopSignal =
                         _ -> handleNotifications
                False -> handleNotifications
       handleNotifications =
-          do waitForNextNotif
+          do newNotifSignal <- async waitForNextNotif
+             stop <- async $ readMVar stopSignal
+             waitEither_ newNotifSignal stop
              notifications <- getNotifications
              forM_ notifications $
                  \(Entity notifId notif) ->
