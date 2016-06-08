@@ -8,6 +8,7 @@ where
 import Kis
 
 import Control.Concurrent
+import Control.Exception.Base
 import Control.Monad
 import Control.Monad.Trans.Class
 import System.IO.Temp
@@ -86,10 +87,15 @@ spec = do
                  runKis [client] [nh] (T.pack fp)
              result <- takeMVar resMvar
              result `shouldBe` (Patient "Simon")
-
-
-_kisConfig :: KisConfig
-_kisConfig = KisConfig realTimeClock
+       it "raises an exception if the save Notif action tries to write into DB" $
+          let client = void $ req (CreatePatient $ Patient "Simon")
+              saveFunction :: Monad m => T.Text -> (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
+              saveFunction _ _  _ = void $ req (CreatePatient (Patient "Thomas"))
+              processFunction _ = return ()
+              nh = NotificationHandler saveFunction processFunction "nh1"
+          in (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
+                 runKis [client] [nh] (T.pack fp))
+             `shouldThrow` (== ErrorCall "Save-Notification action spawned a write request")
 
 simpleNotifHandler :: MVar [RequestType] -> T.Text -> NotificationHandler
 simpleNotifHandler notifList sig =
