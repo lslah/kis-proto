@@ -117,5 +117,5 @@ saveRequest handlerSig (request, _) writeNotif =
 processNotification :: MVar [RequestType] -> BS.ByteString -> IO ()
 processNotification notifList payload =
     do oldList <- takeMVar notifList
-       let Just reqType = (J.decode (BSL.fromStrict payload))
+       let Just reqType = J.decode (BSL.fromStrict payload)
        putMVar notifList (reqType:oldList)

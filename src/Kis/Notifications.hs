@@ -53,10 +53,7 @@ notificationsThread getNotifications deleteNotif handlers newNotifs stopSignal =
                         _ -> handleNotifications
                False -> handleNotifications
       handleNotifications =
-          do newNotifSignal <- async $ takeMVar newNotifs
-             stop <- async $ readMVar stopSignal
-             waitEither_ newNotifSignal stop
-             notifications <- getNotifications
+          do notifications <- getNotifications
              forM_ notifications $
                  \(Entity notifId (Notification payload sig)) ->
                      case Map.lookup sig notifProcessFunktionMap of
@@ -67,6 +64,9 @@ notificationsThread getNotifications deleteNotif handlers newNotifs stopSignal =
                            error $ "notifcaions for handler"
                                    ++ (T.unpack sig)
                                    ++ "found but this handler has not been registered!"
+             newNotifSignal <- async $ takeMVar newNotifs
+             stop <- async $ readMVar stopSignal
+             waitEither_ newNotifSignal stop
              loop
       notifProcessFunktionMap =
           Map.fromList $ map (\nh -> (nh_signature nh, nh_processNotif nh)) handlers
