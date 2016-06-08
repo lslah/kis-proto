@@ -6,6 +6,7 @@ where
 import Kis
 
 import Control.Concurrent
+import Control.Exception.Base
 import Control.Monad
 import Control.Monad.IO.Class
 import Database.Persist
@@ -35,11 +36,11 @@ spec = do
                      pat <- req (CreatePatient $ Patient "Simon")
                      void $ req (PlacePatient pat bed)
               service = Service client (notifHandler collectedNotifs)
-          withTempFile "/tmp/" "tmpKisDB1" $ \fp _ ->
+          withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
               runKis [service] (T.pack fp)
           notifs <- takeMVar collectedNotifs
           notifs `shouldBe` (map Notification [PatientMoved, NewPatient, NewBed])
-    describe "Notification handlers" $
+    describe "Notification handlers" $ do
        it "are notified of Notifications" $ do
              mvar1 <- newMVar []
              mvar2 <- newMVar []
@@ -52,16 +53,25 @@ spec = do
                  services = [ Service client1 (notifHandler mvar1)
                             , Service client2 (notifHandler mvar2)
                             ]
-             withTempFile "/tmp/" "tmpKisDB2" $ \fp _ ->
+                 prop l = countElem (Notification NewPatient) l == 2
+                          && countElem (Notification NewBed) l == 1
+                          && length l == 3
+             withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
                 runKis services (T.pack fp)
              notifList1 <- takeMVar mvar1
              notifList2 <- takeMVar mvar2
              notifList1 `shouldSatisfy` prop
              notifList2 `shouldSatisfy` prop
-           where
-             prop l = countElem (Notification NewPatient) l == 2
-                      && countElem (Notification NewBed) l == 1
-                      && length l == 3
+       it "does not block if nothing happens in service" $
+           (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
+               runKis [Service (return ()) (\_ -> return ())] (T.pack fp))
+       -- ^ The reason for this test is that the newNotif MVar was blocked indefinitely
+       -- and the notifications thread didnt wakeup on the stop signal.
+       it "exceptions in notification handler is catched" $
+           (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
+               runKis [Service (void $ req (CreateBed "")) notifHandlerWithException] (T.pack fp))
+           `shouldThrow` (== Overflow)
+
 
 kisConfig :: KisConfig
 kisConfig = KisConfig realTimeClock
@@ -70,3 +80,6 @@ notifHandler :: MonadIO m => MVar [Notification] -> Notification -> KisClient m 
 notifHandler notifList newNotif =
     do oldList <- liftIO $ takeMVar notifList
        liftIO $ putMVar notifList (newNotif:oldList)
+
+notifHandlerWithException :: MonadIO m => Notification -> KisClient m ()
+notifHandlerWithException _ = throw Overflow
