@@ -19,11 +19,11 @@ import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Text as T
 
-type WriteNotifFunc m = (T.Text, BS.ByteString) -> m ()
+type WriteNotifFunc m = BS.ByteString -> m ()
 
 data NotificationHandler =
     NotificationHandler
-    { nh_saveNotif :: forall a m . Monad m => T.Text -> (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
+    { nh_saveNotif :: forall a m . Monad m => (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
     , nh_processNotif :: BS.ByteString -> IO ()
     , nh_signature :: T.Text
     }
@@ -63,7 +63,7 @@ notificationsThread getNotifications deleteNotif handlers newNotifs stopSignal =
                            do processFunc payload
                               deleteNotif notifId
                        Nothing ->
-                           error $ "notifcaions for handler"
+                           error $ "notifications for handler"
                                    ++ (T.unpack sig)
                                    ++ "found but this handler has not been registered!"
              newNotifSignal <- async $ takeMVar newNotifs

@@ -72,12 +72,12 @@ spec = do
                      do pat <- req (CreatePatient $ Patient "Simon")
                         bed <- req (CreateBed "xy")
                         void $ req (PlacePatient pat bed)
-                 saveFunction :: Monad m => T.Text -> (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
-                 saveFunction sig (request, _) writeNotif =
+                 saveFunction :: Monad m => (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
+                 saveFunction (request, _) writeNotif =
                      case request of
                        PlacePatient patId _ ->
                            do patient <- req (GetPatient patId)
-                              lift $ writeNotif (sig, BSL.toStrict (J.encode patient))
+                              lift $ writeNotif (BSL.toStrict (J.encode patient))
                        _ -> return ()
                  processFunction bs =
                      putMVar resMvar res
@@ -89,8 +89,8 @@ spec = do
              result `shouldBe` (Patient "Simon")
        it "raises an exception if the save Notif action tries to write into DB" $
           let client = void $ req (CreatePatient $ Patient "Simon")
-              saveFunction :: Monad m => T.Text -> (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
-              saveFunction _ _  _ = void $ req (CreatePatient (Patient "Thomas"))
+              saveFunction :: Monad m => (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
+              saveFunction _  _ = void $ req (CreatePatient (Patient "Thomas"))
               processFunction _ = return ()
               nh = NotificationHandler saveFunction processFunction "nh1"
           in (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
@@ -114,12 +114,11 @@ simpleNotifHandler notifList sig =
 
 saveRequest ::
     Monad m
- => T.Text
- -> (KisRequest a, a)
+ => (KisRequest a, a)
  -> WriteNotifFunc m
  -> KisClient m ()
-saveRequest handlerSig (request, _) writeNotif =
-     lift $ writeNotif (handlerSig, BSL.toStrict (J.encode (T.pack (show request))))
+saveRequest (request, _) writeNotif =
+     lift $ writeNotif (BSL.toStrict (J.encode (T.pack (show request))))
 
 processNotification :: MVar [RequestType] -> BS.ByteString -> IO ()
 processNotification notifList payload =

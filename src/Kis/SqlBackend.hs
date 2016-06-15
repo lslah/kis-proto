@@ -92,7 +92,7 @@ handleKisRequest backend notifHandlers clock request =
       saveNotificationActions req res =
           mapM_ (\nh -> runClient kis (saveNotification nh res req)) notifHandlers
       saveNotification nh res req =
-          (nh_saveNotif nh) (nh_signature nh) (req, res) (void . writeNotif)
+          (nh_saveNotif nh) (req, res) (void . writeNotif (nh_signature nh))
       kis = Kis handleSqlRequest clock
       handleSqlRequest req =
           case isWriteAction req of
@@ -144,9 +144,10 @@ deleteNotificationInBackend backend notifId = runSql backend (delete notifId)
 
 writeNotif ::
     (MonadCatch m, MonadIO m)
-    => (T.Text, BS.ByteString)
+    => T.Text
+    -> BS.ByteString
     -> ReaderT SqlBackend m NotificationId
-writeNotif (signature, payload) = S.insert (Notification payload signature)
+writeNotif signature payload = S.insert (Notification payload signature)
 
 withLock ::
     (MonadCatch m, MonadBaseControl IO m, MonadIO m)
