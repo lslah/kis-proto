@@ -8,6 +8,7 @@ module Kis.SqliteBackend
     , runClient
     , runSingleClientSqlite
     , buildKisWithBackend
+    , RunNotifications(..)
     )
 where
 
@@ -38,7 +39,8 @@ withSqliteKisWithNotifs ::
 withSqliteKisWithNotifs backendType config notifHandlers f =
     do backend <- sqliteBackend backendType
        stopNotifThread <- newEmptyMVar
-       (kis, notifThread) <- buildKisWithBackend backend config notifHandlers stopNotifThread
+       (kis, notifThread) <-
+           buildKisWithBackend backend config (RunNotifs stopNotifThread notifHandlers)
        res <- f kis
        putMVar stopNotifThread ()
        wait notifThread
@@ -51,9 +53,7 @@ withSqliteKis ::
     -> IO a
 withSqliteKis backendType config f =
     do backend <- sqliteBackend backendType
-       dontRunNotifThread <- newMVar () -- Because the MVar is full, the notifThread stops immediately
-                                        -- TODO Abstract over the MVars
-       (kis, _) <- buildKisWithBackend backend config [] dontRunNotifThread
+       (kis, _) <- buildKisWithBackend backend config NoNotifs
        f kis
 
 runSingleClientSqlite ::

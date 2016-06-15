@@ -8,6 +8,7 @@ module Kis.SqlBackend
     , sqlMigrate
     , ExceptionMap
     , KisBackend(..)
+    , RunNotifications(..)
     )
 where
 
@@ -37,24 +38,32 @@ data KisBackend e =
     SingleBackend SqlBackend (ExceptionMap e)
     | PoolBackend ConnectionPool (ExceptionMap e)
 
+data RunNotifications = NoNotifs | RunNotifs (MVar ()) [NotificationHandler]
+
 buildKisWithBackend ::
     (MonadCatch m, MonadBaseControl IO m, MonadIO m, Exception e)
     => KisBackend e
     -> KisConfig
-    -> [NotificationHandler]
-    -> MVar ()
+    -> RunNotifications
     -> IO (Kis m, Async ())
-buildKisWithBackend backend (KisConfig clock) notifHandlers stopSignal =
+buildKisWithBackend backend (KisConfig clock) runNotifs =
     do wakeUpNotifThread <- newEmptyMVar
        lockDB <- newMVar ()
-       notifThread <-
-           async $
-               notificationsThread
-                 (getNotifs lockDB)
-                 (deleteNotif lockDB)
-                 notifHandlers
-                 wakeUpNotifThread
-                 stopSignal
+       (notifThread, notifHandlers) <-
+           case runNotifs of
+             NoNotifs ->
+                 do emptyAsync <- async $ return ()
+                    return $ (emptyAsync, [])
+             RunNotifs stopSignal notifHandlers ->
+                 do notifThread <-
+                        async $
+                            notificationsThread
+                              (getNotifs lockDB)
+                              (deleteNotif lockDB)
+                              notifHandlers
+                              wakeUpNotifThread
+                              stopSignal
+                    return (notifThread, notifHandlers)
        let kis = Kis { k_requestHandler =
                            \req ->
                                withLock lockDB $
