@@ -6,19 +6,22 @@ module KisSpec
 where
 
 import Kis
-import Kis.Time
 
+import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Monad
 import Control.Monad.Except
 import Database.Persist.Sqlite
 import Data.Maybe
+import System.IO.Temp
 import Test.Hspec
+import qualified Data.Text as T
 
 spec :: Spec
 spec = do
     describe "runClient" $
         it "can be parametrized" $
-            runClient (Kis customKisFunction realTimeClock) $
+            runClient customKis $
                 void $ req (CreatePatient $ Patient "Thomas")
     describe "runSingleClientSqlite" $ do
         it "can create a Patient" $
@@ -42,17 +45,44 @@ spec = do
                 pat <- req (CreatePatient $ Patient "xy")
                 void $ req (PlacePatient pat (toSqlKey 1)))
             `shouldThrow` (== ConstraintViolation)
-    describe "withSqliteKis" $ do
+    describe "withSqliteKis" $
          it "can run two clients in sequence" $
             withSqliteKis InMemory kisConfig $ \kis -> do
                 patId <- runClient kis $ req (CreatePatient $ Patient "Simon")
                 pats <- runClient kis $ req GetPatients
                 pats `shouldBe` [Entity patId (Patient "Simon")]
+    describe "withSqlitePool" $ do
+          it "can run two clients in sequence" $
+             withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
+                 withSqliteKis (PoolBackendType (T.pack fp) 10) kisConfig $ \kis ->
+                     do patId <- runClient kis $ req (CreatePatient $ Patient "Simon")
+                        pats <- runClient kis $ req GetPatients
+                        liftIO $ pats `shouldBe` [Entity patId (Patient "Simon")]
+          it "can run two clients in parallel" $
+             withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
+                 withSqliteKis (PoolBackendType (T.pack fp) 10) kisConfig $ \kis ->
+                     do firstClientDone <- newEmptyMVar
+                        let client1 =
+                                do void $ req (CreatePatient $ Patient "Simon")
+                                   liftIO $ putMVar firstClientDone ()
+                            client2 =
+                                do void $ req (CreatePatient $ Patient "Thomas")
+                                   liftIO $ takeMVar firstClientDone
+                                   pats <- req GetPatients
+                                   liftIO $ map (\(Entity _ pat) -> pat) pats `shouldBe` [Patient "Simon"]
+                        link =<< async (runClient kis client1)
+                        link =<< async (runClient kis client2)
 
 customKisFunction :: KisRequest a -> IO a
 customKisFunction (CreatePatient _) = return (toSqlKey 1)
 customKisFunction _ = undefined
 
+customKis :: Kis IO
+customKis =
+    Kis customKisFunction realTimeClock
+
 kisConfig :: KisConfig
 kisConfig = KisConfig realTimeClock
 
+--mockNotificationSystem :: NotificationSystem IO
+--mockNotificationSystem = NotificationSystem (return []) (return ()) (\_ -> return ())

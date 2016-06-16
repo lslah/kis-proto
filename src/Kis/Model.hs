@@ -9,6 +9,8 @@ module Kis.Model
 where
 
 import Database.Persist.TH
+import qualified Data.ByteString as BS
+import qualified Data.Text as T
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 Patient json
@@ -23,6 +25,11 @@ PatientBed
     bedId BedId
     UniquePatientId patientId
     UniqueBedId bedId
+    deriving Show Eq
+
+Notification
+    payload BS.ByteString
+    handlerSig T.Text
     deriving Show Eq
 |]
 

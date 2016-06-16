@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 module Web
     ( webMain
+    , webClient
     , inMemoryApplication
     )
 where
@@ -13,10 +14,14 @@ import Web.Spock.Safe
 
 import Kis
 import Kis.SqliteBackend
-import Kis.Time
 
 __ASSET_DIR__ :: FilePath
 __ASSET_DIR__ = "frontend"
+
+webClient :: KisClient IO ()
+webClient =
+    do kis <- ask
+       liftIO $ runSpock 8080 $ web (\kc -> runClient kis kc)
 
 webMain :: IO ()
 webMain = runSpock 8080 inMemoryWeb
@@ -28,7 +33,7 @@ web runKisClient =
 inMemoryWeb :: IO Middleware
 inMemoryWeb = do
     backend <- sqliteBackend InMemory
-    let kis = buildKisWithBackend backend (KisConfig realTimeClock)
+    (kis, _) <- buildKisWithBackend backend (KisConfig realTimeClock) NoNotifs
     web (runClient kis)
 
 inMemoryApplication :: IO Application

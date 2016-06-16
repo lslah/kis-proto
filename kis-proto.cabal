@@ -15,7 +15,9 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  build-depends:       base >= 4.7 && < 5
+  build-depends:       async
+                     , base >= 4.7 && < 5
+                     , bytestring
                      , containers
                      , either
                      , monad-control
@@ -39,6 +41,7 @@ library
                      , Kis
                      , Kis.Kis
                      , Kis.Model
+                     , Kis.Notifications
                      , Kis.SqlBackend
                      , Kis.SqliteBackend
                      , Kis.Time
@@ -47,7 +50,7 @@ library
                      , Simulator.Template
   ghc-options:       -Wall -fwarn-incomplete-patterns -Werror
 
-executable kis-proto
+executable kis-proto-web
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
@@ -55,21 +58,37 @@ executable kis-proto
                      , kis-proto
   default-language:    Haskell2010
 
+executable kis-proto
+  hs-source-dirs:      kis
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , kis-proto
+                     , temporary
+                     , text
+  default-language:    Haskell2010
+ 
+
 test-suite kis-proto-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base
                      , aeson
+                     , async
+                     , bytestring
                      , either
                      , extra
                      , hspec
                      , hspec-wai
                      , kis-proto
                      , mtl
+                     , MissingH
                      , persistent
                      , persistent-sqlite
                      , QuickCheck
+                     , temporary
+                     , text
                      , time
                      , transformers
                      , wai-extra

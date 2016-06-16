@@ -9,6 +9,7 @@ module Kis.Kis
     , KisConfig(..)
     , Kis(..)
     , KisException(..)
+    , isWriteAction
     )
 where
 
@@ -31,11 +32,20 @@ data KisRequest a where
 
 deriving instance Show (KisRequest a)
 
+isWriteAction :: KisRequest a -> Bool
+isWriteAction (CreateBed _) = True
+isWriteAction (CreatePatient _) = True
+isWriteAction (PlacePatient _ _) = True
+isWriteAction _ = False
+
 data Kis m =
     Kis
     { k_requestHandler :: forall a. KisRequest a -> m a
+      -- ^ Interface with the data
     , k_clock :: Clock
+      -- ^ Interface with clock functions
     }
+
 type KisClient m = ReaderT (Kis m) m
 
 data KisConfig = KisConfig Clock
