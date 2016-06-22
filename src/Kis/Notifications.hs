@@ -23,7 +23,11 @@ type WriteNotifFunc m = BS.ByteString -> m ()
 
 data NotificationHandler =
     NotificationHandler
-    { nh_saveNotif :: forall a m . Monad m => (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
+    { nh_saveNotif ::
+          forall a m . Monad m
+          => (KisRequest a, a)
+          -> WriteNotifFunc m
+          -> KisClient m ()
     , nh_processNotif :: BS.ByteString -> IO ()
     , nh_signature :: T.Text
     }

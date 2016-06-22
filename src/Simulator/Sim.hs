@@ -13,10 +13,13 @@ import Kis.Time
 import Simulator.Template
 
 
-runSimulator :: MonadIO m => Template m (PatientId, BedId) -> KisClient m ()
+runSimulator ::
+    (MonadIO m, KisWrite m, KisClock m)
+    => Template m (PatientId, BedId)
+    -> m ()
 runSimulator template =
-  do patientId <- req (CreatePatient (Patient "Simon"))
-     bedId <- req (CreateBed "1a")
+  do patientId <- createPatient (Patient "Simon")
+     bedId <- createBed "1a"
      loop template (patientId, bedId)
        where
          loop template' templateInfo =

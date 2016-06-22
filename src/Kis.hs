@@ -4,15 +4,16 @@ module Kis
     , KisClient
     , Kis(..)
     , KisException(..)
+    , KisClock(..)
+    , KisRead(..)
+    , KisWrite(..)
     , NotificationHandler(..)
     , SqliteBackendType(..)
     , WriteNotifFunc
     , realTimeClock
-    , req
     , runClient
     , runSingleClientSqlite
     , runKis
-    , waitForKisTime
     , withSqliteKis
     , module Kis.Model
     )
@@ -37,13 +38,3 @@ runKis clients notifHandlers dbFile =
       poolbackend = PoolBackendType dbFile 10
       kisConfig = KisConfig realTimeClock
 
-req :: Monad m => KisRequest a -> KisClient m a
-req action = do
-    reqH <- asks k_requestHandler
-    lift $ reqH action
-
-waitForKisTime :: MonadIO m => TimeOffset -> KisClient m ()
-waitForKisTime time =
-    do clock <- asks k_clock
-       let waitFor = c_waitFor clock
-       liftIO $ waitFor time

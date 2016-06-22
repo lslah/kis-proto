@@ -44,9 +44,8 @@ webInterface = do
     middleware $ staticPolicy $ addBase __ASSET_DIR__
     post "/patient" $ do
         patient <- jsonBody'
-        patId <- req' (CreatePatient patient)
+        patId <- lift $ createPatient patient
         json patId
     get "/patients" $ do
-        patients <- req' GetPatients
+        patients <- lift getPatients
         json patients
-    where req' = lift . req

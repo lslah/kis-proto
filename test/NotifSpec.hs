@@ -26,9 +26,9 @@ spec = do
         it "can be run with single service" $ do
           collectedNotifs <- newMVar []
           let client =
-                  do bed <- req (CreateBed "xy")
-                     pat <- req (CreatePatient $ Patient "Simon")
-                     void $ req (PlacePatient pat bed)
+                  do bed <- createBed "xy"
+                     pat <- createPatient (Patient "Simon")
+                     void $ placePatient pat bed
           withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
               runKis [client] [simpleNotifHandler collectedNotifs "notif1"] (T.pack fp)
           notifs <- takeMVar collectedNotifs
@@ -41,11 +41,11 @@ spec = do
        it "are notified of Notifications" $
            do mvar1 <- newMVar []
               mvar2 <- newMVar []
-              let client1 = void $ req (CreatePatient $ Patient "Simon")
+              let client1 = void $ createPatient $ Patient "Simon"
                   client2 =
-                      do void $ req (CreateBed "xy")
-                         void $ req (CreatePatient $ Patient "Thomas")
-                         void $ req GetPatients
+                      do void $ createBed "xy"
+                         void $ createPatient (Patient "Thomas")
+                         void $ getPatients
                   nh1 = simpleNotifHandler mvar1 "notifH1"
                   nh2 = simpleNotifHandler mvar2 "notifH2"
                   allHandlers = [nh1, nh2]
@@ -69,14 +69,14 @@ spec = do
        it "can use the Kis interface to access DB" $
           do resMvar <- newEmptyMVar
              let client =
-                     do pat <- req (CreatePatient $ Patient "Simon")
-                        bed <- req (CreateBed "xy")
-                        void $ req (PlacePatient pat bed)
+                     do pat <- createPatient $ Patient "Simon"
+                        bed <- createBed "xy"
+                        void $ placePatient pat bed
                  saveFunction :: Monad m => (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
                  saveFunction (request, _) writeNotif =
                      case request of
                        PlacePatient patId _ ->
-                           do patient <- req (GetPatient patId)
+                           do patient <- getPatient patId
                               lift $ writeNotif (BSL.toStrict (J.encode patient))
                        _ -> return ()
                  processFunction bs =
@@ -88,9 +88,9 @@ spec = do
              result <- takeMVar resMvar
              result `shouldBe` (Patient "Simon")
        it "raises an exception if the save Notif action tries to write into DB" $
-          let client = void $ req (CreatePatient $ Patient "Simon")
+          let client = void $ createPatient (Patient "Simon")
               saveFunction :: Monad m => (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
-              saveFunction _  _ = void $ req (CreatePatient (Patient "Thomas"))
+              saveFunction _  _ = void $ createPatient (Patient "Thomas")
               processFunction _ = return ()
               nh = NotificationHandler saveFunction processFunction "nh1"
           in (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->

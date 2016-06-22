@@ -129,11 +129,11 @@ runAction :: (MonadCatch m, MonadIO m)
 runAction (CreateBed name) = S.insert (Bed name)
 runAction (CreatePatient patient) = S.insert patient
 runAction (GetPatient pid) = S.get pid
-runAction GetPatients = getPatients
+runAction GetPatients = getPatientsSql
 runAction (PlacePatient patId bedId) = S.insertUnique (PatientBed patId bedId)
 
-getPatients :: MonadIO m => ReaderT SqlBackend m [Entity Patient]
-getPatients = E.select $ E.from $ \p -> return p
+getPatientsSql :: MonadIO m => ReaderT SqlBackend m [Entity Patient]
+getPatientsSql = E.select $ E.from $ \p -> return p
 
 getBackendNotifs ::
     (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
