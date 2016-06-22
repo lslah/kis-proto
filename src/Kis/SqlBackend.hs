@@ -1,7 +1,10 @@
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# OPTIONS_GHC -fno-warn-orphans       #-}
+
 module Kis.SqlBackend
     ( buildKisWithBackend
     , runClient
@@ -53,7 +56,7 @@ buildKisWithBackend backend (KisConfig clock) runNotifs =
            case runNotifs of
              NoNotifs ->
                  do emptyAsync <- async $ return ()
-                    return $ (emptyAsync, [])
+                    return (emptyAsync, [])
              RunNotifs stopSignal notifHandlers ->
                  do notifThread <-
                         async $
@@ -89,26 +92,18 @@ handleKisRequest ::
     -> Clock
     -> forall a. KisRequest a
     -> m a
-handleKisRequest backend notifHandlers clock request =
+handleKisRequest backend notifHandlers _clock request =
     runSql backend (handleRequest request)
     where
       handleRequest req =
           do res <- runAction req
-             case isWriteAction req of
-               True -> saveNotificationActions req res
-               False -> return ()
+             when (isWriteAction req) (saveNotificationActions req res)
              return res
       saveNotificationActions req res =
-          mapM_ (\nh -> runClient kis (saveNotification nh res req)) notifHandlers
+          mapM_ (\nh -> saveNotification nh res req) notifHandlers
       saveNotification nh res req =
-          (nh_saveNotif nh) (req, res) (void . writeNotif (nh_signature nh))
-      kis = Kis handleSqlRequest clock
-      handleSqlRequest req =
-          case isWriteAction req of
-            True -> error "Save-Notification action spawned a write request"
-            False ->
-                do res <- runAction req
-                   return res
+          do mNotif <- nh_saveNotif nh (req, res)
+             maybe (return ()) (void . writeNotif (nh_signature nh)) mNotif
 
 convertException :: (Exception e, MonadCatch m) => (e -> KisException) -> m a -> m a
 convertException exceptionMap = handle (throwM . exceptionMap)
@@ -168,3 +163,7 @@ withLock lock f =
        res <- f
        liftIO (putMVar lock ())
        return res
+
+instance MonadIO m => KisRead (ReaderT SqlBackend m) where
+    getPatients = getPatientsSql
+    getPatient = S.get

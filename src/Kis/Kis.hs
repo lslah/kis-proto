@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
 {-# LANGUAGE FlexibleInstances          #-}
 
 module Kis.Kis
@@ -19,8 +18,8 @@ module Kis.Kis
 where
 
 import Control.Monad.Logger
-import Control.Monad.RWS hiding (asks)
 import Control.Monad.Reader
+import Control.Monad.RWS hiding (asks)
 import Database.Persist
 import Data.Text
 import Data.Time.Clock

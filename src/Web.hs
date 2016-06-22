@@ -39,7 +39,7 @@ inMemoryWeb = do
 inMemoryApplication :: IO Application
 inMemoryApplication = spockAsApp inMemoryWeb
 
-webInterface :: MonadIO m => SpockT (KisClient m) ()
+webInterface :: (KisRead m, KisWrite m) => MonadIO m => SpockT m ()
 webInterface = do
     middleware $ staticPolicy $ addBase __ASSET_DIR__
     post "/patient" $ do

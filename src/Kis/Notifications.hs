@@ -2,7 +2,6 @@
 module Kis.Notifications
     ( NotificationHandler(..)
     , notificationsThread
-    , WriteNotifFunc
     )
 where
 
@@ -19,15 +18,12 @@ import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Text as T
 
-type WriteNotifFunc m = BS.ByteString -> m ()
-
 data NotificationHandler =
     NotificationHandler
     { nh_saveNotif ::
-          forall a m . Monad m
+          forall a m . (KisRead m, Monad m)
           => (KisRequest a, a)
-          -> WriteNotifFunc m
-          -> KisClient m ()
+          -> m (Maybe BS.ByteString)
     , nh_processNotif :: BS.ByteString -> IO ()
     , nh_signature :: T.Text
     }

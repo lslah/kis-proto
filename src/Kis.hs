@@ -9,7 +9,6 @@ module Kis
     , KisWrite(..)
     , NotificationHandler(..)
     , SqliteBackendType(..)
-    , WriteNotifFunc
     , realTimeClock
     , runClient
     , runSingleClientSqlite

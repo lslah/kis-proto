@@ -10,7 +10,6 @@ import Kis
 import Control.Concurrent
 import Control.Exception.Base
 import Control.Monad
-import Control.Monad.Trans.Class
 import System.IO.Temp
 import Test.Hspec
 import qualified Data.Aeson as J
@@ -72,13 +71,13 @@ spec = do
                      do pat <- createPatient $ Patient "Simon"
                         bed <- createBed "xy"
                         void $ placePatient pat bed
-                 saveFunction :: Monad m => (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
-                 saveFunction (request, _) writeNotif =
+                 saveFunction :: (Monad m, KisRead m) => (KisRequest a, a) -> m (Maybe BS.ByteString)
+                 saveFunction (request, _) =
                      case request of
                        PlacePatient patId _ ->
                            do patient <- getPatient patId
-                              lift $ writeNotif (BSL.toStrict (J.encode patient))
-                       _ -> return ()
+                              return $ Just (BSL.toStrict (J.encode patient))
+                       _ -> return Nothing
                  processFunction bs =
                      putMVar resMvar res
                          where Just res = J.decode (BSL.fromStrict bs)
@@ -87,16 +86,6 @@ spec = do
                  runKis [client] [nh] (T.pack fp)
              result <- takeMVar resMvar
              result `shouldBe` (Patient "Simon")
-       it "raises an exception if the save Notif action tries to write into DB" $
-          let client = void $ createPatient (Patient "Simon")
-              saveFunction :: Monad m => (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
-              saveFunction _  _ = void $ createPatient (Patient "Thomas")
-              processFunction _ = return ()
-              nh = NotificationHandler saveFunction processFunction "nh1"
-          in (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
-                 runKis [client] [nh] (T.pack fp))
-             `shouldThrow` (== ErrorCall "Save-Notification action spawned a write request")
-
        it "cannot add two notifHandlers with equal signature" $
           let nh1 = NotificationHandler saveRequest (\_ -> return ()) "nh1"
           in (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
@@ -113,12 +102,11 @@ simpleNotifHandler notifList sig =
     }
 
 saveRequest ::
-    Monad m
+    (Monad m, KisRead m)
  => (KisRequest a, a)
- -> WriteNotifFunc m
- -> KisClient m ()
-saveRequest (request, _) writeNotif =
-     lift $ writeNotif (BSL.toStrict (J.encode (T.pack (show request))))
+ -> m (Maybe BS.ByteString)
+saveRequest (request, _) =
+     return (Just $ BSL.toStrict (J.encode (T.pack (show request))))
 
 processNotification :: MVar [RequestType] -> BS.ByteString -> IO ()
 processNotification notifList payload =
