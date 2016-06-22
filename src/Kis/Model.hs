@@ -14,21 +14,21 @@ import qualified Data.ByteString as BS
 import qualified Data.Text as T
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
-Patient json
+PPatient json
     name String
     deriving Show Eq
-Bed
+PBed
     name String
     deriving Show Eq
 
-PatientBed
-    patientId PatientId
-    bedId BedId
+PPatientBed
+    patientId PPatientId
+    bedId PBedId
     UniquePatientId patientId
     UniqueBedId bedId
     deriving Show Eq
 
-Notification
+PNotification
     timestamp UTCTime
     payload BS.ByteString
     handlerSig T.Text

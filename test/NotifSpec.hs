@@ -26,33 +26,33 @@ spec = do
         it "can be run with single service" $ do
           collectedNotifs <- newMVar []
           let client =
-                  do bed <- createBed "xy"
-                     pat <- createPatient (Patient "Simon")
+                  do bed <- createBed $ BedSubmit "xy"
+                     pat <- createPatient (PatientSubmit "Simon")
                      void $ placePatient pat bed
           withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
               runKis [client] [simpleNotifHandler collectedNotifs "notif1"] (T.pack fp)
           notifs <- takeMVar collectedNotifs
           tail notifs `shouldBe`
-                   [ T.pack (show (CreatePatient (Patient "Simon")))
-                   , T.pack (show (CreateBed "xy"))
+                   [ T.pack (show (CreatePatient (PatientSubmit "Simon")))
+                   , T.pack (show (CreateBed (BedSubmit "xy")))
                    ]
     describe "Notification handlers" $ do
        it "are notified of Notifications" $
            do mvar1 <- newMVar []
               mvar2 <- newMVar []
-              let client1 = void $ createPatient $ Patient "Simon"
+              let client1 = void $ createPatient $ PatientSubmit "Simon"
                   client2 =
-                      do void $ createBed "xy"
-                         void $ createPatient (Patient "Thomas")
+                      do void $ createBed $ BedSubmit "xy"
+                         void $ createPatient (PatientSubmit "Thomas")
                          void getPatients
                   nh1 = simpleNotifHandler mvar1 "notifH1"
                   nh2 = simpleNotifHandler mvar2 "notifH2"
                   allHandlers = [nh1, nh2]
                   allClients = [client1, client2]
                   prop l =
-                      T.pack (show (CreatePatient $ Patient "Simon")) `elem` l
-                      &&  T.pack (show (CreatePatient $ Patient "Thomas")) `elem` l
-                      &&  T.pack (show (CreateBed "xy")) `elem` l
+                      T.pack (show (CreatePatient $ PatientSubmit "Simon")) `elem` l
+                      &&  T.pack (show (CreatePatient $ PatientSubmit "Thomas")) `elem` l
+                      &&  T.pack (show (CreateBed $ BedSubmit "xy")) `elem` l
                       && length l == 3
               withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
                   runKis allClients allHandlers (T.pack fp)
@@ -68,8 +68,8 @@ spec = do
        it "can use the Kis interface to access DB" $
           do resMvar <- newEmptyMVar
              let client =
-                     do pat <- createPatient $ Patient "Simon"
-                        bed <- createBed "xy"
+                     do pat <- createPatient $ PatientSubmit "Simon"
+                        bed <- createBed $ BedSubmit "xy"
                         void $ placePatient pat bed
                  saveFunction :: (Monad m, KisRead m) => (KisRequest a, a) -> m (Maybe BS.ByteString)
                  saveFunction (request, _) =
@@ -85,7 +85,7 @@ spec = do
              withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
                  runKis [client] [nh] (T.pack fp)
              result <- takeMVar resMvar
-             result `shouldBe` Patient "Simon"
+             p_name result `shouldBe` "Simon"
        it "cannot add two notifHandlers with equal signature" $
           let nh1 = NotificationHandler (\_ -> return Nothing) (\_ _ -> return ()) "nh1"
           in (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
@@ -96,7 +96,7 @@ spec = do
                do currentTime <- getCurrentTime
                   let processNotif timestamp _ = timestamp `shouldBe` currentTime
                       nh = NotificationHandler (\_ -> return (Just "")) processNotif "nh"
-                      run kis = runClient kis (void $ createPatient (Patient "Simon"))
+                      run kis = runClient kis (void $ createPatient (PatientSubmit "Simon"))
                       poolBackend = PoolBackendType (T.pack dbFile) 10
                   void $ withSqliteKisWithNotifs poolBackend (KisConfig (constClock currentTime)) [nh] run
 

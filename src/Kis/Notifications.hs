@@ -1,20 +1,22 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Kis.Notifications
     ( NotificationHandler(..)
+    , Notification(..)
+    , NotificationId(..)
     , notificationsThread
     )
 where
 
 import Kis.Kis
-import Kis.Model
-
 
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Monad
 import Data.Maybe (isJust)
 import Data.Time.Clock
-import Database.Persist
+import Database.PostgreSQL.Simple.FromField
+import Database.PostgreSQL.Simple.ToField
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Text as T
@@ -29,8 +31,19 @@ data NotificationHandler =
     , nh_signature :: T.Text
     }
 
+data Notification =
+    Notification
+    { n_id :: NotificationId
+    , n_timestamp :: UTCTime
+    , n_payload :: BS.ByteString
+    , n_handlerSignature :: T.Text
+    } deriving (Show, Eq)
+
+newtype NotificationId = NotificationId Integer
+    deriving (Show, Eq, Ord, FromField, ToField)
+
 notificationsThread ::
-    IO [Entity Notification]
+    IO [Notification]
     -- ^ Function to retrieve Notifications
     -> (NotificationId -> IO ())
     -- ^ Function to delete Notifications
@@ -58,7 +71,7 @@ notificationsThread getNotifications deleteNotif handlers newNotifs stopSignal =
       handleNotifications =
           do notifications <- getNotifications
              forM_ notifications $
-                 \(Entity notifId (Notification timestamp payload sig)) ->
+                 \(Notification notifId timestamp payload sig) ->
                      case Map.lookup sig notifProcessFunktionMap of
                        Just processFunc ->
                            do processFunc timestamp payload

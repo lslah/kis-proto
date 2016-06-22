@@ -25,6 +25,6 @@ movePatient ::
     => (PatientId, BedId)
     -> m (PatientId, BedId)
 movePatient (patientId, _) =
-    do bedId <- createBed "someBed"
+    do bedId <- createBed (BedSubmit "someBed")
        void $ placePatient patientId bedId
        return (patientId, bedId)

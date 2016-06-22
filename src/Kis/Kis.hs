@@ -20,13 +20,12 @@ where
 import Control.Monad.Logger
 import Control.Monad.Reader
 import Control.Monad.RWS hiding (asks)
-import Database.Persist
 import Data.Text
 import Data.Time.Clock
 import GHC.Exception
 
-import Kis.Model
 import Kis.Time
+import Kis.Types
 
 data Kis m =
     Kis
@@ -37,11 +36,11 @@ data Kis m =
     }
 
 data KisRequest a where
-    CreateBed :: String -> KisRequest BedId
-    CreatePatient :: Patient -> KisRequest PatientId
+    CreateBed :: BedSubmit -> KisRequest BedId
+    CreatePatient :: PatientSubmit -> KisRequest PatientId
     GetPatient :: PatientId -> KisRequest (Maybe Patient)
-    GetPatients :: KisRequest [Entity Patient]
-    PlacePatient :: PatientId -> BedId -> KisRequest (Maybe PatientBedId)
+    GetPatients :: KisRequest [Patient]
+    PlacePatient :: PatientId -> BedId -> KisRequest Bool
 
 deriving instance Show (KisRequest a)
 
@@ -52,13 +51,13 @@ isWriteAction (PlacePatient _ _) = True
 isWriteAction _ = False
 
 class KisRead m where
-    getPatients ::  m [Entity Patient]
+    getPatients ::  m [Patient]
     getPatient :: PatientId -> m (Maybe Patient)
 
 class KisWrite m where
-    createBed :: String -> m BedId
-    createPatient :: Patient -> m PatientId
-    placePatient :: PatientId -> BedId -> m (Maybe PatientBedId)
+    createBed :: BedSubmit -> m BedId
+    createPatient :: PatientSubmit -> m PatientId
+    placePatient :: PatientId -> BedId -> m Bool
 
 class KisClock m where
     getKisTime :: m UTCTime

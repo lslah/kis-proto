@@ -16,12 +16,12 @@ module Kis
     , runKis
     , withSqliteKis
     , withSqliteKisWithNotifs
-    , module Kis.Model
+    , module Kis.Types
     )
 where
 
 import Kis.Kis
-import Kis.Model
+import Kis.Types
 import Kis.Notifications
 import Kis.Time
 import Kis.SqliteBackend
@@ -38,4 +38,5 @@ runKis clients notifHandlers dbFile =
     where
       poolbackend = PoolBackendType dbFile 10
       kisConfig = KisConfig realTimeClock
+
 

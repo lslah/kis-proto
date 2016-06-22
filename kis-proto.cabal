@@ -15,7 +15,8 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  build-depends:       async
+  build-depends:       aeson
+                     , async
                      , base >= 4.7 && < 5
                      , bytestring
                      , containers
@@ -30,6 +31,7 @@ library
                      , persistent
                      , persistent-sqlite
                      , persistent-template
+                     , postgresql-simple
                      , Spock
                      , text
                      , time
@@ -45,6 +47,7 @@ library
                      , Kis.SqlBackend
                      , Kis.SqliteBackend
                      , Kis.Time
+                     , Kis.Types
                      , Web
                      , Simulator.Sim
                      , Simulator.Template
@@ -86,6 +89,7 @@ test-suite kis-proto-test
                      , MissingH
                      , persistent
                      , persistent-sqlite
+                     , postgresql-simple
                      , QuickCheck
                      , temporary
                      , text
@@ -96,6 +100,8 @@ test-suite kis-proto-test
   default-language:    Haskell2010
   other-modules:       KisSpec
                      , WebSpec
+                     , NotifSpec
+                     , PostgresSpec
 
 source-repository head
   type:     git

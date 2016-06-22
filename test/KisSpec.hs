@@ -11,8 +11,6 @@ import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Monad
 import Control.Monad.Except
-import Database.Persist.Sqlite
-import Data.Maybe
 import Data.Time.Clock
 import System.IO.Temp
 import Test.Hspec
@@ -23,59 +21,59 @@ spec = do
     describe "runClient" $
         it "can be parametrized" $
             runClient customKis $
-                void $ createPatient $ Patient "Thomas"
+                void $ createPatient $ PatientSubmit "Thomas"
     describe "runSingleClientSqlite" $ do
         it "can create a Patient" $
             runSingleClientSqlite InMemory kisConfig $ do
-                pid <- createPatient $ Patient "Thomas"
+                pid <- createPatient $ PatientSubmit "Thomas"
                 patient <-  getPatient pid
-                liftIO $ liftM patientName patient `shouldBe` (Just "Thomas")
+                liftIO $ liftM p_name patient `shouldBe` Just "Thomas"
         it "can place patient in bed" $
             runSingleClientSqlite InMemory kisConfig $ do
-                pat <- createPatient $ Patient "Thomas"
-                bed <- createBed "xy"
+                pat <- createPatient $ PatientSubmit "Thomas"
+                bed <- createBed $ BedSubmit "xy"
                 patBed <- placePatient pat bed
-                liftIO $ patBed `shouldSatisfy` isJust
+                liftIO $ patBed `shouldBe` True
         it "can't place nonexisting patient in bed" $
             (runSingleClientSqlite InMemory kisConfig $ do
-                bed <- createBed "xy"
-                void $ placePatient (toSqlKey 1) bed)
+                bed <- createBed $ BedSubmit "xy"
+                void $ placePatient (PatientId 1) bed)
             `shouldThrow` (== ConstraintViolation)
         it "can't place patient in nonexisting bed" $
             (runSingleClientSqlite InMemory kisConfig $ do
-                pat <- createPatient $ Patient "xy"
-                void $ placePatient pat (toSqlKey 1))
+                pat <- createPatient $ PatientSubmit "xy"
+                void $ placePatient pat (BedId 1))
             `shouldThrow` (== ConstraintViolation)
     describe "withSqliteKis" $
          it "can run two clients in sequence" $
             withSqliteKis InMemory kisConfig $ \kis -> do
-                patId <- runClient kis $ createPatient $ Patient "Simon"
-                pats <- runClient kis $ getPatients
-                pats `shouldBe` [Entity patId (Patient "Simon")]
+                patId <- runClient kis $ createPatient $ PatientSubmit "Simon"
+                pats <- runClient kis getPatients
+                pats `shouldBe` [Patient patId "Simon"]
     describe "withSqlitePool" $ do
           it "can run two clients in sequence" $
              withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
                  withSqliteKis (PoolBackendType (T.pack fp) 10) kisConfig $ \kis ->
-                     do patId <- runClient kis $ createPatient $ Patient "Simon"
-                        pats <- runClient kis $ getPatients
-                        liftIO $ pats `shouldBe` [Entity patId (Patient "Simon")]
+                     do patId <- runClient kis $ createPatient $ PatientSubmit "Simon"
+                        pats <- runClient kis getPatients
+                        liftIO $ pats `shouldBe` [Patient patId "Simon"]
           it "can run two clients in parallel" $
              withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
                  withSqliteKis (PoolBackendType (T.pack fp) 10) kisConfig $ \kis ->
                      do firstClientDone <- newEmptyMVar
                         let client1 =
-                                do void $ createPatient $ Patient "Simon"
+                                do void $ createPatient $ PatientSubmit "Simon"
                                    liftIO $ putMVar firstClientDone ()
                             client2 =
-                                do void $ createPatient $ Patient "Thomas"
+                                do void $ createPatient $ PatientSubmit "Thomas"
                                    liftIO $ takeMVar firstClientDone
                                    pats <- getPatients
-                                   liftIO $ map (\(Entity _ pat) -> pat) pats `shouldBe` [Patient "Simon"]
+                                   liftIO $ map p_name pats `shouldBe` ["Simon"]
                         link =<< async (runClient kis client1)
                         link =<< async (runClient kis client2)
 
 customKisFunction :: UTCTime -> KisRequest a -> IO a
-customKisFunction _ (CreatePatient _) = return (toSqlKey 1)
+customKisFunction _ (CreatePatient _) = return (PatientId 1)
 customKisFunction _ _ = undefined
 
 customKis :: Kis IO

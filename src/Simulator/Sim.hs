@@ -18,8 +18,8 @@ runSimulator ::
     => Template m (PatientId, BedId)
     -> m ()
 runSimulator template =
-  do patientId <- createPatient (Patient "Simon")
-     bedId <- createBed "1a"
+  do patientId <- createPatient (PatientSubmit "Simon")
+     bedId <- createBed (BedSubmit "1a")
      loop template (patientId, bedId)
        where
          loop template' templateInfo =
