@@ -10,6 +10,7 @@ import Kis
 import Control.Concurrent
 import Control.Exception.Base
 import Control.Monad
+import Data.Time.Clock
 import System.IO.Temp
 import Test.Hspec
 import qualified Data.Aeson as J
@@ -32,10 +33,9 @@ spec = do
               runKis [client] [simpleNotifHandler collectedNotifs "notif1"] (T.pack fp)
           notifs <- takeMVar collectedNotifs
           tail notifs `shouldBe`
-                   ([ T.pack (show (CreatePatient (Patient "Simon")))
-                    , T.pack (show (CreateBed "xy"))
-                    ]
-                   )
+                   [ T.pack (show (CreatePatient (Patient "Simon")))
+                   , T.pack (show (CreateBed "xy"))
+                   ]
     describe "Notification handlers" $ do
        it "are notified of Notifications" $
            do mvar1 <- newMVar []
@@ -44,7 +44,7 @@ spec = do
                   client2 =
                       do void $ createBed "xy"
                          void $ createPatient (Patient "Thomas")
-                         void $ getPatients
+                         void getPatients
                   nh1 = simpleNotifHandler mvar1 "notifH1"
                   nh2 = simpleNotifHandler mvar2 "notifH2"
                   allHandlers = [nh1, nh2]
@@ -78,16 +78,16 @@ spec = do
                            do patient <- getPatient patId
                               return $ Just (BSL.toStrict (J.encode patient))
                        _ -> return Nothing
-                 processFunction bs =
+                 processFunction _ bs =
                      putMVar resMvar res
                          where Just res = J.decode (BSL.fromStrict bs)
                  nh = NotificationHandler saveFunction processFunction "nh1"
              withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
                  runKis [client] [nh] (T.pack fp)
              result <- takeMVar resMvar
-             result `shouldBe` (Patient "Simon")
+             result `shouldBe` Patient "Simon"
        it "cannot add two notifHandlers with equal signature" $
-          let nh1 = NotificationHandler saveRequest (\_ -> return ()) "nh1"
+          let nh1 = NotificationHandler saveRequest (\_ _ -> return ()) "nh1"
           in (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
                  runKis [] [nh1, nh1] (T.pack fp))
              `shouldThrow` (== ErrorCall "two notifhandlers with the same signature were added")
@@ -108,8 +108,9 @@ saveRequest ::
 saveRequest (request, _) =
      return (Just $ BSL.toStrict (J.encode (T.pack (show request))))
 
-processNotification :: MVar [RequestType] -> BS.ByteString -> IO ()
-processNotification notifList payload =
+processNotification :: MVar [RequestType] -> UTCTime -> BS.ByteString -> IO ()
+processNotification notifList _ payload =
     do oldList <- takeMVar notifList
        let Just reqType = J.decode (BSL.fromStrict payload)
        putMVar notifList (reqType:oldList)
+

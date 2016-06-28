@@ -13,6 +13,7 @@ import Control.Monad
 import Control.Monad.Except
 import Database.Persist.Sqlite
 import Data.Maybe
+import Data.Time.Clock
 import System.IO.Temp
 import Test.Hspec
 import qualified Data.Text as T
@@ -73,15 +74,15 @@ spec = do
                         link =<< async (runClient kis client1)
                         link =<< async (runClient kis client2)
 
-customKisFunction :: KisRequest a -> IO a
-customKisFunction (CreatePatient _) = return (toSqlKey 1)
-customKisFunction _ = undefined
+customKisFunction :: UTCTime -> KisRequest a -> IO a
+customKisFunction _ (CreatePatient _) = return (toSqlKey 1)
+customKisFunction _ _ = undefined
 
 customKis :: Kis IO
 customKis =
     Kis customKisFunction realTimeClock
 
-kisConfig :: KisConfig
+kisConfig :: KisConfig IO
 kisConfig = KisConfig realTimeClock
 
 --mockNotificationSystem :: NotificationSystem IO

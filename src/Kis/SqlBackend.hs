@@ -18,7 +18,6 @@ where
 import Kis.Kis
 import Kis.Notifications
 import Kis.Model
-import Kis.Time
 
 import Control.Concurrent
 import Control.Concurrent.Async
@@ -28,8 +27,9 @@ import Control.Monad.Except
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader
 import Database.Persist.Sql as S
-import qualified Data.ByteString as BS
+import Data.Time.Clock
 import qualified Database.Esqueleto as E
+import qualified Data.ByteString as BS
 import qualified Data.Text as T
 
 -- | Every sql backend should provide a function of type 'ExceptionMap e'
@@ -46,7 +46,7 @@ data RunNotifications = NoNotifs | RunNotifs (MVar ()) [NotificationHandler]
 buildKisWithBackend ::
     (MonadCatch m, MonadBaseControl IO m, MonadIO m, Exception e)
     => KisBackend e
-    -> KisConfig
+    -> KisConfig m
     -> RunNotifications
     -> IO (Kis m, Async ())
 buildKisWithBackend backend (KisConfig clock) runNotifs =
@@ -68,9 +68,9 @@ buildKisWithBackend backend (KisConfig clock) runNotifs =
                               stopSignal
                     return (notifThread, notifHandlers)
        let kis = Kis { k_requestHandler =
-                           \req ->
+                           \timestamp req ->
                                withLock lockDB $
-                                   do res <- handleKisRequest backend notifHandlers clock req
+                                   do res <- handleKisRequest backend notifHandlers timestamp req
                                       signalNotifThread wakeUpNotifThread req
                                       return res
                      , k_clock = clock
@@ -89,10 +89,10 @@ handleKisRequest ::
     (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
     => KisBackend e
     -> [NotificationHandler]
-    -> Clock
+    -> UTCTime
     -> forall a. KisRequest a
     -> m a
-handleKisRequest backend notifHandlers _clock request =
+handleKisRequest backend notifHandlers timestamp request =
     runSql backend (handleRequest request)
     where
       handleRequest req =
@@ -103,7 +103,7 @@ handleKisRequest backend notifHandlers _clock request =
           mapM_ (\nh -> saveNotification nh res req) notifHandlers
       saveNotification nh res req =
           do mNotif <- nh_saveNotif nh (req, res)
-             maybe (return ()) (void . writeNotif (nh_signature nh)) mNotif
+             maybe (return ()) (void . writeNotif timestamp (nh_signature nh)) mNotif
 
 convertException :: (Exception e, MonadCatch m) => (e -> KisException) -> m a -> m a
 convertException exceptionMap = handle (throwM . exceptionMap)
@@ -148,10 +148,12 @@ deleteNotificationInBackend backend notifId = runSql backend (delete notifId)
 
 writeNotif ::
     (MonadCatch m, MonadIO m)
-    => T.Text
+    => UTCTime
+    -> T.Text
     -> BS.ByteString
     -> ReaderT SqlBackend m NotificationId
-writeNotif signature payload = S.insert (Notification payload signature)
+writeNotif timestamp signature payload =
+    S.insert (Notification timestamp payload signature)
 
 withLock ::
     (MonadCatch m, MonadBaseControl IO m, MonadIO m)

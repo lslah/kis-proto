@@ -30,9 +30,9 @@ import Kis.Time
 
 data Kis m =
     Kis
-    { k_requestHandler :: forall a. KisRequest a -> m a
+    { k_requestHandler :: forall a. UTCTime -> KisRequest a -> m a
       -- ^ Interface with the data
-    , k_clock :: Clock
+    , k_clock :: Clock m
       -- ^ Interface with clock functions
     }
 
@@ -75,16 +75,16 @@ instance Monad m => KisWrite (KisClient m) where
     createPatient pat = req (CreatePatient pat)
     placePatient patId bedId = req (PlacePatient patId bedId)
 
-instance MonadIO m => KisClock (KisClient m) where
+instance Monad m => KisClock (KisClient m) where
     getKisTime =
         do clock <- asks k_clock
-           liftIO $ c_getTime clock
+           lift $ c_getTime clock
     waitForKisTime time =
         do clock <- asks k_clock
            let waitFor = c_waitFor clock
-           liftIO $ waitFor time
+           lift $ waitFor time
 
-data KisConfig = KisConfig Clock
+data KisConfig m = KisConfig (Clock m)
 
 data KisException =
     ConstraintViolation
@@ -98,5 +98,6 @@ _logShow tag x = logInfoN (tag <> ": " <> (pack . show $ x))
 
 req :: Monad m => KisRequest a -> KisClient m a
 req action = do
+    timestamp <- getKisTime
     reqH <- asks k_requestHandler
-    lift $ reqH action
+    lift $ reqH timestamp action

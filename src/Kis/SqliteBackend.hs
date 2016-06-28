@@ -32,7 +32,7 @@ data SqliteBackendType = InMemory | PoolBackendType T.Text Int
 
 withSqliteKisWithNotifs ::
     SqliteBackendType
-    -> KisConfig
+    -> KisConfig IO
     -> [NotificationHandler]
     -> (Kis IO -> IO a)
     -> IO a
@@ -48,7 +48,7 @@ withSqliteKisWithNotifs backendType config notifHandlers f =
 
 withSqliteKis ::
     SqliteBackendType
-    -> KisConfig
+    -> KisConfig IO
     -> (Kis IO -> IO a)
     -> IO a
 withSqliteKis backendType config f =
@@ -58,7 +58,7 @@ withSqliteKis backendType config f =
 
 runSingleClientSqlite ::
     SqliteBackendType
-    -> KisConfig
+    -> KisConfig IO
     -> KisClient IO a
     -> IO a
 runSingleClientSqlite backendType config client =
