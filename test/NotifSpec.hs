@@ -87,11 +87,18 @@ spec = do
              result <- takeMVar resMvar
              result `shouldBe` Patient "Simon"
        it "cannot add two notifHandlers with equal signature" $
-          let nh1 = NotificationHandler saveRequest (\_ _ -> return ()) "nh1"
+          let nh1 = NotificationHandler (\_ -> return Nothing) (\_ _ -> return ()) "nh1"
           in (withTempFile "/tmp/" "tmpKisDB" $ \fp _ ->
                  runKis [] [nh1, nh1] (T.pack fp))
              `shouldThrow` (== ErrorCall "two notifhandlers with the same signature were added")
-
+       it "correctly reads notification timestamps" $
+          withTempFile "/tmp/" "tmpKisDB" $ \dbFile _ ->
+               do currentTime <- getCurrentTime
+                  let processNotif timestamp _ = timestamp `shouldBe` currentTime
+                      nh = NotificationHandler (\_ -> return Nothing) processNotif "nh"
+                      run kis = runClient kis (void $ createPatient (Patient "Simon"))
+                      poolBackend = PoolBackendType (T.pack dbFile) 10
+                  void $ withSqliteKisWithNotifs poolBackend (KisConfig (constClock currentTime)) [nh] run
 
 simpleNotifHandler :: MVar [RequestType] -> T.Text -> NotificationHandler
 simpleNotifHandler notifList sig =

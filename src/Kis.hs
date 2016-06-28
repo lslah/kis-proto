@@ -9,11 +9,13 @@ module Kis
     , KisWrite(..)
     , NotificationHandler(..)
     , SqliteBackendType(..)
+    , constClock
     , realTimeClock
     , runClient
     , runSingleClientSqlite
     , runKis
     , withSqliteKis
+    , withSqliteKisWithNotifs
     , module Kis.Model
     )
 where

@@ -8,7 +8,6 @@ module Kis.Time
 where
 
 import Control.Monad
-import Control.Monad.Identity
 import Data.Time.Clock
 import System.Time.Extra
 
@@ -76,7 +75,7 @@ virtualTimeClock ref mult =
     , c_waitUntil = waitUntilVirtualTime ref mult
     }
 
-constClock :: UTCTime -> Clock Identity
+constClock :: UTCTime -> Clock IO
 constClock time =
     Clock
     { c_getTime = return time
