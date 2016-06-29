@@ -95,7 +95,7 @@ spec = do
           withTempFile "/tmp/" "tmpKisDB" $ \dbFile _ ->
                do currentTime <- getCurrentTime
                   let processNotif timestamp _ = timestamp `shouldBe` currentTime
-                      nh = NotificationHandler (\_ -> return Nothing) processNotif "nh"
+                      nh = NotificationHandler (\_ -> return (Just "")) processNotif "nh"
                       run kis = runClient kis (void $ createPatient (Patient "Simon"))
                       poolBackend = PoolBackendType (T.pack dbFile) 10
                   void $ withSqliteKisWithNotifs poolBackend (KisConfig (constClock currentTime)) [nh] run
