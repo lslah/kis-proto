@@ -75,7 +75,7 @@ virtualTimeClock ref mult =
     , c_waitUntil = waitUntilVirtualTime ref mult
     }
 
-constClock :: UTCTime -> Clock IO
+constClock :: Monad m => UTCTime -> Clock m
 constClock time =
     Clock
     { c_getTime = return time
