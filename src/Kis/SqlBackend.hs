@@ -125,24 +125,41 @@ runAction :: (MonadCatch m, MonadIO m)
           => KisRequest a -> ReaderT SqlBackend m a
 runAction (CreateBed (BedSubmit name)) = fmap (BedId . fromSqlKey') $ S.insert (PBed name)
 runAction (CreatePatient (PatientSubmit patient)) = fmap (PatientId . fromSqlKey') $ S.insert (PPatient patient)
-runAction (GetPatient pid@(PatientId idx)) =
-    do mPat <- S.get (toSqlKey' idx)
-       return $ fmap (\(PPatient name) -> Patient pid name) mPat
+runAction (GetPatient pid) = getPatientSql pid
 runAction GetPatients = getPatientsSql
 runAction (PlacePatient (PatientId patId) (BedId bedId)) =
-    liftM isJust (S.insertUnique (PPatientBed (toSqlKey' patId) (toSqlKey' bedId)))
+    liftM isJust $ S.insertUnique (PPatientBed (toSqlKey' patId) (toSqlKey' bedId))
 
 getPatientsSql :: MonadIO m => ReaderT SqlBackend m [Patient]
 getPatientsSql =
-    do entities <- E.select $ E.from $ \p -> return p
-       let patients = map transformPatient entities
-       return patients
+    do patEntities <- E.select $ E.from $ \p -> return p
+       return $ map pPatientToPatient patEntities
+
+getPatientSql :: MonadIO m => PatientId -> ReaderT SqlBackend m (Maybe Patient)
+getPatientSql (PatientId idx) =
+    do mPat <- S.get patSqlKey
+       return $ fmap (pPatientToPatient' patSqlKey) mPat
     where
-      transformPatient (Entity idx (PPatient name)) =
-          Patient
-          { p_id = PatientId (fromSqlKey' idx)
-          , p_name = name
-          }
+      patSqlKey = toSqlKey' idx
+
+pPatientToPatient :: Entity PPatient -> Patient
+pPatientToPatient (Entity idx ppat) = pPatientToPatient' idx ppat
+
+pPatientToPatient' :: PPatientId -> PPatient -> Patient
+pPatientToPatient' ppatId (PPatient name) =
+    Patient (PatientId (fromSqlKey' ppatId)) name
+
+pNotifToNotif :: Entity PNotification -> Notification
+pNotifToNotif (Entity idx pnot) = pNotifToNotif' idx pnot
+
+pNotifToNotif' :: PNotificationId -> PNotification -> Notification
+pNotifToNotif' pNotifId (PNotification timestamp payload handlerSig) =
+    Notification
+    { n_id = NotificationId $ fromSqlKey' pNotifId
+    , n_timestamp = timestamp
+    , n_payload = payload
+    , n_handlerSignature = handlerSig
+    }
 
 getBackendNotifs ::
     (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
@@ -150,15 +167,7 @@ getBackendNotifs ::
     -> m [Notification]
 getBackendNotifs backend =
     do pNotifs <- runSql backend getNotifQuery
-       return $
-           map (\(Entity idx (PNotification timestamp payload handlerSig)) ->
-                    Notification
-                    { n_id = NotificationId $ fromSqlKey' idx
-                    , n_timestamp = timestamp
-                    , n_payload = payload
-                    , n_handlerSignature = handlerSig
-                    }
-               ) pNotifs
+       return $ map pNotifToNotif pNotifs
     where
       getNotifQuery :: MonadIO m => ReaderT SqlBackend m [Entity PNotification]
       getNotifQuery = E.select $ E.from $ \p -> return p
@@ -199,6 +208,4 @@ withLock lock f =
 
 instance MonadIO m => KisRead (ReaderT SqlBackend m) where
     getPatients = getPatientsSql
-    getPatient pid@(PatientId idx) =
-        do mPat <- S.get (toSqlKey' idx)
-           return $ fmap (\(PPatient name) -> Patient pid name) mPat
+    getPatient = getPatientSql
