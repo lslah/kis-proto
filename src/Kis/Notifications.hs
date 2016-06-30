@@ -2,7 +2,6 @@
 module Kis.Notifications
     ( NotificationHandler(..)
     , notificationsThread
-    , WriteNotifFunc
     )
 where
 
@@ -14,17 +13,19 @@ import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Monad
 import Data.Maybe (isJust)
+import Data.Time.Clock
 import Database.Persist
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Text as T
 
-type WriteNotifFunc m = BS.ByteString -> m ()
-
 data NotificationHandler =
     NotificationHandler
-    { nh_saveNotif :: forall a m . Monad m => (KisRequest a, a) -> WriteNotifFunc m -> KisClient m ()
-    , nh_processNotif :: BS.ByteString -> IO ()
+    { nh_saveNotif ::
+          forall a m . (KisRead m, Monad m)
+          => (KisRequest a, a)
+          -> m (Maybe BS.ByteString)
+    , nh_processNotif :: UTCTime -> BS.ByteString -> IO ()
     , nh_signature :: T.Text
     }
 
@@ -57,10 +58,10 @@ notificationsThread getNotifications deleteNotif handlers newNotifs stopSignal =
       handleNotifications =
           do notifications <- getNotifications
              forM_ notifications $
-                 \(Entity notifId (Notification payload sig)) ->
+                 \(Entity notifId (Notification timestamp payload sig)) ->
                      case Map.lookup sig notifProcessFunktionMap of
                        Just processFunc ->
-                           do processFunc payload
+                           do processFunc timestamp payload
                               deleteNotif notifId
                        Nothing ->
                            error $ "notifications for handler"

@@ -1,7 +1,10 @@
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# OPTIONS_GHC -fno-warn-orphans       #-}
+
 module Kis.SqlBackend
     ( buildKisWithBackend
     , runClient
@@ -15,7 +18,6 @@ where
 import Kis.Kis
 import Kis.Notifications
 import Kis.Model
-import Kis.Time
 
 import Control.Concurrent
 import Control.Concurrent.Async
@@ -25,8 +27,9 @@ import Control.Monad.Except
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader
 import Database.Persist.Sql as S
-import qualified Data.ByteString as BS
+import Data.Time.Clock
 import qualified Database.Esqueleto as E
+import qualified Data.ByteString as BS
 import qualified Data.Text as T
 
 -- | Every sql backend should provide a function of type 'ExceptionMap e'
@@ -43,7 +46,7 @@ data RunNotifications = NoNotifs | RunNotifs (MVar ()) [NotificationHandler]
 buildKisWithBackend ::
     (MonadCatch m, MonadBaseControl IO m, MonadIO m, Exception e)
     => KisBackend e
-    -> KisConfig
+    -> KisConfig m
     -> RunNotifications
     -> IO (Kis m, Async ())
 buildKisWithBackend backend (KisConfig clock) runNotifs =
@@ -53,7 +56,7 @@ buildKisWithBackend backend (KisConfig clock) runNotifs =
            case runNotifs of
              NoNotifs ->
                  do emptyAsync <- async $ return ()
-                    return $ (emptyAsync, [])
+                    return (emptyAsync, [])
              RunNotifs stopSignal notifHandlers ->
                  do notifThread <-
                         async $
@@ -65,9 +68,9 @@ buildKisWithBackend backend (KisConfig clock) runNotifs =
                               stopSignal
                     return (notifThread, notifHandlers)
        let kis = Kis { k_requestHandler =
-                           \req ->
+                           \timestamp req ->
                                withLock lockDB $
-                                   do res <- handleKisRequest backend notifHandlers clock req
+                                   do res <- handleKisRequest backend notifHandlers timestamp req
                                       signalNotifThread wakeUpNotifThread req
                                       return res
                      , k_clock = clock
@@ -86,29 +89,21 @@ handleKisRequest ::
     (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
     => KisBackend e
     -> [NotificationHandler]
-    -> Clock
+    -> UTCTime
     -> forall a. KisRequest a
     -> m a
-handleKisRequest backend notifHandlers clock request =
+handleKisRequest backend notifHandlers timestamp request =
     runSql backend (handleRequest request)
     where
       handleRequest req =
           do res <- runAction req
-             case isWriteAction req of
-               True -> saveNotificationActions req res
-               False -> return ()
+             when (isWriteAction req) (saveNotificationActions req res)
              return res
       saveNotificationActions req res =
-          mapM_ (\nh -> runClient kis (saveNotification nh res req)) notifHandlers
+          mapM_ (\nh -> saveNotification nh res req) notifHandlers
       saveNotification nh res req =
-          (nh_saveNotif nh) (req, res) (void . writeNotif (nh_signature nh))
-      kis = Kis handleSqlRequest clock
-      handleSqlRequest req =
-          case isWriteAction req of
-            True -> error "Save-Notification action spawned a write request"
-            False ->
-                do res <- runAction req
-                   return res
+          do mNotif <- nh_saveNotif nh (req, res)
+             maybe (return ()) (void . writeNotif timestamp (nh_signature nh)) mNotif
 
 convertException :: (Exception e, MonadCatch m) => (e -> KisException) -> m a -> m a
 convertException exceptionMap = handle (throwM . exceptionMap)
@@ -129,11 +124,11 @@ runAction :: (MonadCatch m, MonadIO m)
 runAction (CreateBed name) = S.insert (Bed name)
 runAction (CreatePatient patient) = S.insert patient
 runAction (GetPatient pid) = S.get pid
-runAction GetPatients = getPatients
+runAction GetPatients = getPatientsSql
 runAction (PlacePatient patId bedId) = S.insertUnique (PatientBed patId bedId)
 
-getPatients :: MonadIO m => ReaderT SqlBackend m [Entity Patient]
-getPatients = E.select $ E.from $ \p -> return p
+getPatientsSql :: MonadIO m => ReaderT SqlBackend m [Entity Patient]
+getPatientsSql = E.select $ E.from $ \p -> return p
 
 getBackendNotifs ::
     (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
@@ -153,10 +148,12 @@ deleteNotificationInBackend backend notifId = runSql backend (delete notifId)
 
 writeNotif ::
     (MonadCatch m, MonadIO m)
-    => T.Text
+    => UTCTime
+    -> T.Text
     -> BS.ByteString
     -> ReaderT SqlBackend m NotificationId
-writeNotif signature payload = S.insert (Notification payload signature)
+writeNotif timestamp signature payload =
+    S.insert (Notification timestamp payload signature)
 
 withLock ::
     (MonadCatch m, MonadBaseControl IO m, MonadIO m)
@@ -168,3 +165,7 @@ withLock lock f =
        res <- f
        liftIO (putMVar lock ())
        return res
+
+instance MonadIO m => KisRead (ReaderT SqlBackend m) where
+    getPatients = getPatientsSql
+    getPatient = S.get

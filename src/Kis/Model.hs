@@ -8,6 +8,7 @@
 module Kis.Model
 where
 
+import Data.Time.Clock
 import Database.Persist.TH
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
@@ -28,6 +29,7 @@ PatientBed
     deriving Show Eq
 
 Notification
+    timestamp UTCTime
     payload BS.ByteString
     handlerSig T.Text
     deriving Show Eq

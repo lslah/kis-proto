@@ -3,19 +3,21 @@ module Kis.Time
    , Clock(..)
    , realTimeClock
    , virtualTimeClock
+   , constClock
    )
 where
 
+import Control.Monad
 import Data.Time.Clock
 import System.Time.Extra
 
 newtype TimeOffset = TimeOffset DiffTime
 
-data Clock =
+data Clock m =
     Clock
-    { c_getTime :: IO UTCTime
-    , c_waitFor :: TimeOffset -> IO ()
-    , c_waitUntil :: UTCTime -> IO ()
+    { c_getTime :: m UTCTime
+    , c_waitFor :: TimeOffset -> m ()
+    , c_waitUntil :: UTCTime -> m ()
     }
 
 getVirtualTime ::
@@ -45,19 +47,16 @@ waitUntilVirtualTime ::
 waitUntilVirtualTime ref mult time =
   do virtNow <- getVirtualTime ref mult
      let timeToWait = diffUTCTime time virtNow
-     case timeToWait < 0 of
-      True -> return ()
-      False -> waitForVirtualTime mult (TimeOffset $ convert timeToWait)
+     when (timeToWait >= 0) $
+          waitForVirtualTime mult (TimeOffset $ convert timeToWait)
 
 waitUntilRealTime :: UTCTime -> IO ()
 waitUntilRealTime time =
   do now <- getCurrentTime
      let timeToWait = diffUTCTime time now
-     case timeToWait < 0 of
-      True -> return ()
-      False -> sleep $ convert timeToWait
+     when (timeToWait >= 0) (sleep $ convert timeToWait)
 
-realTimeClock :: Clock
+realTimeClock :: Clock IO
 realTimeClock =
     Clock
     { c_getTime = getCurrentTime
@@ -68,12 +67,20 @@ realTimeClock =
 virtualTimeClock ::
        UTCTime
     -> Double
-    -> Clock
+    -> Clock IO
 virtualTimeClock ref mult =
     Clock
     { c_getTime = getVirtualTime ref mult
     , c_waitFor = waitForVirtualTime mult
     , c_waitUntil = waitUntilVirtualTime ref mult
+    }
+
+constClock :: Monad m => UTCTime -> Clock m
+constClock time =
+    Clock
+    { c_getTime = return time
+    , c_waitFor = \_ -> return ()
+    , c_waitUntil = \_ -> return ()
     }
 
 convert :: (Real a, Fractional b) => a -> b
