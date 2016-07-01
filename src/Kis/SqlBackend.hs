@@ -3,6 +3,8 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE FunctionalDependencies     #-}
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
 
 module Kis.SqlBackend
@@ -82,7 +84,7 @@ buildKisWithBackend backend (KisConfig clock) runNotifs =
       signalNotifThread wakeUpNotifThread request =
           when (isWriteAction request) (void $ liftIO $ tryPutMVar wakeUpNotifThread ())
       getNotifs lock = withLock lock $ getBackendNotifs backend
-      deleteNotif lock = \nid -> withLock lock $ deleteNotificationInBackend backend nid
+      deleteNotif lock nid = withLock lock $ deleteNotificationInBackend backend nid
 
 runClient :: Kis m -> KisClient m a -> m a
 runClient kis client = runReaderT client kis
@@ -123,43 +125,24 @@ sqlMigrate backend = void $ runSql backend (runMigrationSilent migrateAll)
 
 runAction :: (MonadCatch m, MonadIO m)
           => KisRequest a -> ReaderT SqlBackend m a
-runAction (CreateBed (BedSubmit name)) = fmap (BedId . fromSqlKey') $ S.insert (PBed name)
-runAction (CreatePatient (PatientSubmit patient)) = fmap (PatientId . fromSqlKey') $ S.insert (PPatient patient)
+runAction (CreateBed (BedSubmit name)) = toKis <$> S.insert (PBed name)
+runAction (CreatePatient (PatientSubmit patient)) = toKis <$> S.insert (PPatient patient)
 runAction (GetPatient pid) = getPatientSql pid
 runAction GetPatients = getPatientsSql
-runAction (PlacePatient (PatientId patId) (BedId bedId)) =
-    liftM isJust $ S.insertUnique (PPatientBed (toSqlKey' patId) (toSqlKey' bedId))
+runAction (PlacePatient patId bedId) =
+    liftM isJust $ S.insertUnique (PPatientBed (fromKis patId) (fromKis bedId))
 
 getPatientsSql :: MonadIO m => ReaderT SqlBackend m [Patient]
 getPatientsSql =
     do patEntities <- E.select $ E.from $ \p -> return p
-       return $ map pPatientToPatient patEntities
+       return $ map toKis patEntities
 
 getPatientSql :: MonadIO m => PatientId -> ReaderT SqlBackend m (Maybe Patient)
-getPatientSql (PatientId idx) =
+getPatientSql patId =
     do mPat <- S.get patSqlKey
-       return $ fmap (pPatientToPatient' patSqlKey) mPat
+       return $ fmap (toKis . Entity patSqlKey) mPat
     where
-      patSqlKey = toSqlKey' idx
-
-pPatientToPatient :: Entity PPatient -> Patient
-pPatientToPatient (Entity idx ppat) = pPatientToPatient' idx ppat
-
-pPatientToPatient' :: PPatientId -> PPatient -> Patient
-pPatientToPatient' ppatId (PPatient name) =
-    Patient (PatientId (fromSqlKey' ppatId)) name
-
-pNotifToNotif :: Entity PNotification -> Notification
-pNotifToNotif (Entity idx pnot) = pNotifToNotif' idx pnot
-
-pNotifToNotif' :: PNotificationId -> PNotification -> Notification
-pNotifToNotif' pNotifId (PNotification timestamp payload handlerSig) =
-    Notification
-    { n_id = NotificationId $ fromSqlKey' pNotifId
-    , n_timestamp = timestamp
-    , n_payload = payload
-    , n_handlerSignature = handlerSig
-    }
+      patSqlKey = fromKis patId
 
 getBackendNotifs ::
     (Exception e, MonadCatch m, MonadBaseControl IO m, MonadIO m)
@@ -167,7 +150,7 @@ getBackendNotifs ::
     -> m [Notification]
 getBackendNotifs backend =
     do pNotifs <- runSql backend getNotifQuery
-       return $ map pNotifToNotif pNotifs
+       return $ map toKis pNotifs
     where
       getNotifQuery :: MonadIO m => ReaderT SqlBackend m [Entity PNotification]
       getNotifQuery = E.select $ E.from $ \p -> return p
@@ -177,14 +160,8 @@ deleteNotificationInBackend ::
     => KisBackend e
     -> NotificationId
     -> m ()
-deleteNotificationInBackend backend (NotificationId notifId) =
-    runSql backend (delete (toSqlKey' notifId :: Key PNotification))
-
-toSqlKey' :: ToBackendKey SqlBackend a => Integer -> Key a
-toSqlKey' = toSqlKey . fromIntegral
-
-fromSqlKey' :: ToBackendKey SqlBackend a => Key a -> Integer
-fromSqlKey' = fromIntegral . fromSqlKey
+deleteNotificationInBackend backend notifId =
+    runSql backend (delete (fromKis notifId))
 
 writeNotif ::
     (MonadCatch m, MonadIO m)
@@ -209,3 +186,46 @@ withLock lock f =
 instance MonadIO m => KisRead (ReaderT SqlBackend m) where
     getPatients = getPatientsSql
     getPatient = getPatientSql
+
+class KisConversion a b | a -> b where
+  toKis :: b -> a
+  fromKis :: a -> b
+
+instance KisConversion Notification (Entity PNotification) where
+  toKis (Entity idx pnot) =
+        Notification
+        { n_id = toKis idx
+        , n_timestamp = pNotificationTimestamp pnot
+        , n_payload = pNotificationPayload pnot
+        , n_handlerSignature = pNotificationHandlerSig pnot
+        }
+  fromKis n = Entity (fromKis . n_id $ n) notification
+      where notification =
+              PNotification
+              { pNotificationTimestamp = n_timestamp n
+              , pNotificationPayload = n_payload n
+              , pNotificationHandlerSig = n_handlerSignature n
+              }
+
+instance KisConversion Patient (Entity PPatient) where
+  toKis (Entity idx ppat) = Patient { p_id = toKis idx, p_name = pPatientName ppat }
+  fromKis p = Entity (fromKis . p_id $ p) pPat
+      where pPat = PPatient { pPatientName = p_name p }
+
+instance KisConversion PatientId PPatientId where
+  toKis = PatientId . keyToInteger
+  fromKis (PatientId idx) = integerToKey idx
+
+instance KisConversion BedId PBedId where
+  toKis = BedId . keyToInteger
+  fromKis (BedId idx) = integerToKey idx
+
+instance KisConversion NotificationId PNotificationId where
+  toKis = NotificationId . keyToInteger
+  fromKis (NotificationId idx) = integerToKey idx
+
+integerToKey :: ToBackendKey SqlBackend a => Integer -> Key a
+integerToKey = toSqlKey . fromIntegral
+
+keyToInteger :: ToBackendKey SqlBackend a => Key a -> Integer
+keyToInteger = fromIntegral . fromSqlKey
