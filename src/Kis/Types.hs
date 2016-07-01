@@ -1,5 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 
 module Kis.Types
   ( Bed(..)
@@ -8,6 +10,7 @@ module Kis.Types
   , Patient(..)
   , PatientId(..)
   , PatientSubmit(..)
+  , KisConversion(..)
   )
 where
 
@@ -65,3 +68,7 @@ instance FromRow Patient where
 
 instance Show BedId where show (BedId idx) = show idx
 instance Show PatientId where show (PatientId idx) = show idx
+
+class KisConversion a b | a -> b where
+  toKis :: b -> a
+  fromKis :: a -> b
